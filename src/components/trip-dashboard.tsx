@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { TripMap } from "@/components/trip-map";
 import { clearDemoTrips, listTrips, loadDemoTrips, type TripFilters } from "@/db/trips";
 import { calculateJourneyStatistics } from "@/lib/statistics";
 import type { Trip, TripMode } from "@/lib/types";
@@ -38,6 +39,10 @@ const copy = {
     clearFilters: "清除篩選",
     loadSuccess: "已載入示範旅程。",
     clearSuccess: "已清除示範旅程。",
+    mapTitle: "你的旅行足跡",
+    mapBody: "依目前顯示的旅程，以起訖點的近似連線繪製路線與站點；點選路線或站點可查看資訊。",
+    mapEmpty: "載入示範資料後，或新增自己的旅程後，路線與站點會出現在這裡。",
+    storageError: "無法讀取這個瀏覽器的本機資料。請重新整理後再試一次。",
   },
   en: {
     eyebrow: "YOUR TRAVEL, YOUR DEVICE",
@@ -69,6 +74,10 @@ const copy = {
     clearFilters: "Clear filters",
     loadSuccess: "Sample journeys loaded.",
     clearSuccess: "Sample journeys cleared.",
+    mapTitle: "Your travel footprint",
+    mapBody: "Approximate endpoint connections and stops are drawn from the journeys currently shown. Select a route or stop for details.",
+    mapEmpty: "Load the sample data or add your own journey to see routes and stops here.",
+    storageError: "This browser could not read its local data. Refresh the page and try again.",
   },
 } as const;
 
@@ -93,6 +102,19 @@ function formatDuration(minutes: number, language: Language) {
   const hours = Math.floor(minutes / 60);
   const remainder = minutes % 60;
   return language === "zh" ? `${hours} 小時 ${remainder} 分` : `${hours}h ${remainder}m`;
+}
+
+function withTimeout<T>(task: Promise<T>, timeoutMs = 6000): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error("Timed out while reading local data.")), timeoutMs);
+    task.then((value) => {
+      window.clearTimeout(timer);
+      resolve(value);
+    }, (error: unknown) => {
+      window.clearTimeout(timer);
+      reject(error);
+    });
+  });
 }
 
 function StatsCard({ label, value, detail }: { label: string; value: string; detail?: string }) {
@@ -154,9 +176,10 @@ export function TripDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [status, setStatus] = useState("");
+  const [storageIssue, setStorageIssue] = useState(false);
   const c = copy[language];
 
-  const readTrips = useCallback((activeFilters: TripFilters) => Promise.all([listTrips(), listTrips(activeFilters)]), []);
+  const readTrips = useCallback((activeFilters: TripFilters) => withTimeout(Promise.all([listTrips(), listTrips(activeFilters)])), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -165,6 +188,11 @@ export function TripDashboard() {
       if (cancelled) return;
       setAllTrips(all);
       setTrips(filtered);
+      setIsLoading(false);
+      setStorageIssue(false);
+    }).catch(() => {
+      if (cancelled) return;
+      setStorageIssue(true);
       setIsLoading(false);
     });
 
@@ -192,25 +220,39 @@ export function TripDashboard() {
     const nextFilters: TripFilters = {};
     setIsLoading(true);
     setFilters(nextFilters);
-    await loadDemoTrips();
-    const [all, filtered] = await readTrips(nextFilters);
-    setAllTrips(all);
-    setTrips(filtered);
-    setIsLoading(false);
-    setStatus(c.loadSuccess);
-    setIsSaving(false);
+    try {
+      await loadDemoTrips();
+      const [all, filtered] = await readTrips(nextFilters);
+      setAllTrips(all);
+      setTrips(filtered);
+      setStorageIssue(false);
+      setStatus(c.loadSuccess);
+    } catch {
+      setStorageIssue(true);
+      setStatus(c.storageError);
+    } finally {
+      setIsLoading(false);
+      setIsSaving(false);
+    }
   }
 
   async function handleClearSample() {
     setIsSaving(true);
     setIsLoading(true);
-    await clearDemoTrips();
-    const [all, filtered] = await readTrips(filters);
-    setAllTrips(all);
-    setTrips(filtered);
-    setIsLoading(false);
-    setStatus(c.clearSuccess);
-    setIsSaving(false);
+    try {
+      await clearDemoTrips();
+      const [all, filtered] = await readTrips(filters);
+      setAllTrips(all);
+      setTrips(filtered);
+      setStorageIssue(false);
+      setStatus(c.clearSuccess);
+    } catch {
+      setStorageIssue(true);
+      setStatus(c.storageError);
+    } finally {
+      setIsLoading(false);
+      setIsSaving(false);
+    }
   }
 
   return (
@@ -274,9 +316,19 @@ export function TripDashboard() {
           </div>
         </section>
 
-        <p aria-live="polite" className="mt-4 min-h-5 text-sm font-medium text-teal-700 dark:text-teal-300">{status}</p>
+        <p aria-live="polite" className="mt-4 min-h-5 text-sm font-medium text-teal-700 dark:text-teal-300">{status || (storageIssue ? c.storageError : "")}</p>
 
-        <section className="mt-3" aria-live="polite">
+        <section className="mt-3" aria-labelledby="journey-map-title">
+          <div className="mb-4">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700 dark:text-teal-300">Map</p>
+            <h2 className="mt-1 text-2xl font-bold tracking-tight" id="journey-map-title">{c.mapTitle}</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-500">{c.mapBody}</p>
+          </div>
+          <TripMap language={language} trips={trips} />
+          {!isLoading && trips.length === 0 ? <p className="mt-3 text-sm text-slate-500">{c.mapEmpty}</p> : null}
+        </section>
+
+        <section className="mt-8" aria-live="polite">
           {isLoading ? <p className="py-14 text-center text-slate-500">{c.loading}</p> : null}
           {!isLoading && allTrips.length === 0 ? <EmptyState title={c.emptyTitle} body={c.emptyBody} /> : null}
           {!isLoading && allTrips.length > 0 && trips.length === 0 ? <EmptyState title={c.noResultsTitle} body={c.noResultsBody} /> : null}
