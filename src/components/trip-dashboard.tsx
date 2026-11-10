@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { TripMap } from "@/components/trip-map";
 import { clearDemoTrips, listTrips, loadDemoTrips, type TripFilters } from "@/db/trips";
+import { modeColor } from "@/lib/journey-colors";
 import { calculateJourneyStatistics } from "@/lib/statistics";
 import type { Trip, TripMode } from "@/lib/types";
 
@@ -129,6 +130,7 @@ function StatsCard({ label, value, detail }: { label: string; value: string; det
 
 function TripCard({ trip, language }: { trip: Trip; language: Language }) {
   const c = copy[language];
+  const transportColor = modeColor(trip.mode);
   const number = new Intl.NumberFormat(language === "zh" ? "zh-TW" : "en-GB").format(Math.round(trip.distance_km));
   const names = language === "zh" ? { origin: trip.origin.name_zh, destination: trip.destination.name_zh } : { origin: trip.origin.name_en, destination: trip.destination.name_en };
 
@@ -136,7 +138,7 @@ function TripCard({ trip, language }: { trip: Trip; language: Language }) {
     <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-700 dark:bg-slate-900">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-bold text-teal-800 dark:bg-teal-950 dark:text-teal-200">{modeLabels[language][trip.mode]}</span>
+          <span className="rounded-full border bg-white px-3 py-1 text-xs font-bold dark:bg-slate-950" style={{ borderColor: transportColor, color: transportColor }}>{modeLabels[language][trip.mode]}</span>
           {trip.is_demo ? <span className="text-xs font-medium text-slate-500">{c.demo}</span> : null}
         </div>
         <time className="text-sm font-medium text-slate-500">{formatDate(trip.departure, language)}</time>
@@ -147,9 +149,9 @@ function TripCard({ trip, language }: { trip: Trip; language: Language }) {
           <p className="truncate text-xl font-bold text-slate-950 dark:text-white">{names.origin}</p>
           <p className="mt-1 text-sm text-slate-500">{trip.origin.code}</p>
         </div>
-        <div className="flex shrink-0 flex-col items-center text-teal-700 dark:text-teal-300" aria-hidden="true">
+        <div className="flex shrink-0 flex-col items-center" style={{ color: transportColor }} aria-hidden="true">
           <span className="text-lg">→</span>
-          <span className="mt-1 h-px w-8 bg-teal-300" />
+          <span className="mt-1 h-px w-8" style={{ backgroundColor: transportColor }} />
         </div>
         <div className="min-w-0 flex-1 text-right">
           <p className="truncate text-xl font-bold text-slate-950 dark:text-white">{names.destination}</p>

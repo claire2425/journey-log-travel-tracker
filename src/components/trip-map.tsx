@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
+import { modeColor } from "@/lib/journey-colors";
 import { createJourneyMapData, type JourneyMapData } from "@/lib/map-data";
 import type { Trip } from "@/lib/types";
 
@@ -15,11 +16,15 @@ type TripMapProps = {
 const ROUTE_SOURCE = "journey-routes";
 const STOP_SOURCE = "journey-stops";
 
-function modeColor(mode: Trip["mode"]) {
-  if (mode === "flight") return "#0f766e";
-  if (mode === "hsr") return "#d97706";
-  if (mode === "rail") return "#2563eb";
-  return "#7c3aed";
+const countryLabels: Record<string, Record<Language, string>> = {
+  Taiwan: { zh: "台灣", en: "Taiwan" },
+  Japan: { zh: "日本", en: "Japan" },
+  "United Kingdom": { zh: "英國", en: "United Kingdom" },
+  France: { zh: "法國", en: "France" },
+};
+
+function countryLabel(country: string, language: Language) {
+  return countryLabels[country]?.[language] ?? country;
 }
 
 function updateSource(map: maplibregl.Map, sourceId: string, data: GeoJSON.FeatureCollection) {
@@ -47,21 +52,24 @@ function routePopupText(properties: Record<string, unknown>, language: Language)
 
 function stopPopupText(properties: Record<string, unknown>, language: Language) {
   const name = properties[language === "zh" ? "name_zh" : "name_en"];
+  const country = String(properties.country ?? "");
   const visits = Number(properties.visits ?? 0);
   const visitLabel = language === "zh" ? `${visits} 次使用` : `${visits} journey${visits === 1 ? "" : "s"}`;
-  return `${String(name)} (${String(properties.code)})\n${visitLabel}`;
+  const countryLine = country ? `${language === "zh" ? "國家／地區" : "Country / region"}: ${countryLabel(country, language)}\n` : "";
+  return `${String(name)} (${String(properties.code)})\n${countryLine}${visitLabel}`;
 }
 
 export function TripMap({ language, trips }: TripMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
-  const tripsRef = useRef(trips);
+  const mapData = useMemo(() => createJourneyMapData(trips), [trips]);
+  const mapDataRef = useRef(mapData);
   const languageRef = useRef(language);
   const [mapUnavailable, setMapUnavailable] = useState(false);
 
   useEffect(() => {
-    tripsRef.current = trips;
-  }, [trips]);
+    mapDataRef.current = mapData;
+  }, [mapData]);
 
   useEffect(() => {
     languageRef.current = language;
@@ -69,7 +77,7 @@ export function TripMap({ language, trips }: TripMapProps) {
 
   const fitVisibleJourneys = useCallback(() => {
     if (!mapRef.current) return;
-    fitToJourneys(mapRef.current, createJourneyMapData(tripsRef.current));
+    fitToJourneys(mapRef.current, mapDataRef.current);
   }, []);
 
   useEffect(() => {
@@ -109,9 +117,9 @@ export function TripMap({ language, trips }: TripMapProps) {
 
     map.on("load", () => {
       if (removed) return;
-      const mapData = createJourneyMapData(tripsRef.current);
-      map.addSource(ROUTE_SOURCE, { type: "geojson", data: mapData.routes });
-      map.addSource(STOP_SOURCE, { type: "geojson", data: mapData.stops });
+      const loadedMapData = mapDataRef.current;
+      map.addSource(ROUTE_SOURCE, { type: "geojson", data: loadedMapData.routes });
+      map.addSource(STOP_SOURCE, { type: "geojson", data: loadedMapData.stops });
       map.addLayer({
         id: "journey-route-outline",
         type: "line",
@@ -147,7 +155,7 @@ export function TripMap({ language, trips }: TripMapProps) {
         id: "journey-stops",
         type: "circle",
         source: STOP_SOURCE,
-        paint: { "circle-radius": 5, "circle-color": "#0f766e", "circle-stroke-color": "#064e3b", "circle-stroke-width": 1 },
+        paint: { "circle-radius": 5, "circle-color": ["get", "country_color"], "circle-stroke-color": "#ffffff", "circle-stroke-width": 1 },
       });
       map.addLayer({
         id: "journey-stop-labels",
@@ -178,7 +186,7 @@ export function TripMap({ language, trips }: TripMapProps) {
         map.on("mouseenter", layerId, () => { map.getCanvas().style.cursor = "pointer"; });
         map.on("mouseleave", layerId, () => { map.getCanvas().style.cursor = ""; });
       }
-      fitToJourneys(map, mapData);
+      fitToJourneys(map, loadedMapData);
     });
 
     return () => {
@@ -192,10 +200,9 @@ export function TripMap({ language, trips }: TripMapProps) {
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !map.isStyleLoaded()) return;
-    const mapData = createJourneyMapData(trips);
     updateSource(map, ROUTE_SOURCE, mapData.routes);
     updateSource(map, STOP_SOURCE, mapData.stops);
-  }, [trips]);
+  }, [mapData]);
 
   if (mapUnavailable) {
     return <div className="rounded-3xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center dark:border-slate-700 dark:bg-slate-900"><h3 className="text-lg font-bold">{language === "zh" ? "這個瀏覽器無法顯示互動地圖" : "This browser cannot display the interactive map"}</h3><p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-slate-500">{language === "zh" ? "請以最新版 Chrome、Safari、Firefox 或 Edge 開啟；你的旅程資料仍只會保留在此裝置。" : "Try the latest Chrome, Safari, Firefox, or Edge. Your journey data will remain on this device."}</p></div>;
@@ -210,8 +217,15 @@ export function TripMap({ language, trips }: TripMapProps) {
         </button>
       </div>
       <div aria-label={language === "zh" ? "旅程地圖" : "Journey map"} className="h-[420px] w-full sm:h-[520px]" ref={containerRef} />
-      <div className="flex flex-wrap gap-x-4 gap-y-2 px-5 py-3 text-xs font-medium text-slate-500">
-        {(["flight", "hsr", "rail", "other"] as const).map((mode) => <span className="flex items-center gap-2" key={mode}><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: modeColor(mode) }} />{language === "zh" ? { flight: "飛行", hsr: "高鐵", rail: "鐵路", other: "其他" }[mode] : { flight: "Flight", hsr: "High-speed rail", rail: "Rail", other: "Other" }[mode]}</span>)}
+      <div className="space-y-2 px-5 py-3 text-xs font-medium text-slate-500">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <span className="font-bold text-slate-700 dark:text-slate-200">{language === "zh" ? "路線／交通方式" : "Routes / transport"}</span>
+          {(["flight", "hsr", "rail", "other"] as const).map((mode) => <span className="flex items-center gap-2" key={mode}><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: modeColor(mode) }} />{language === "zh" ? { flight: "飛行", hsr: "高鐵", rail: "鐵路", other: "其他" }[mode] : { flight: "Flight", hsr: "High-speed rail", rail: "Rail", other: "Other" }[mode]}</span>)}
+        </div>
+        {mapData.countryLegend.length > 0 ? <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <span className="font-bold text-slate-700 dark:text-slate-200">{language === "zh" ? "站點／國家或地區" : "Stops / country or region"}</span>
+          {mapData.countryLegend.map((entry) => <span className="flex items-center gap-2" key={entry.country}><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: entry.color }} />{countryLabel(entry.country, language)}</span>)}
+        </div> : null}
       </div>
       <p className="border-t border-slate-100 px-5 py-3 text-xs leading-5 text-slate-500 dark:border-slate-800">{language === "zh" ? "地圖底圖來自 OpenStreetMap；旅程資料仍只保留在這個瀏覽器，並不會上傳。" : "Basemap © OpenStreetMap contributors. Your journey records stay in this browser and are not uploaded."}</p>
     </div>

@@ -1,4 +1,5 @@
 import { interpolateGreatCircle, type Coordinate } from "@/lib/geo";
+import { countryColor } from "@/lib/journey-colors";
 import type { Trip } from "@/lib/types";
 
 export type RouteProperties = {
@@ -17,13 +18,21 @@ export type StopProperties = {
   code: string;
   name_zh: string;
   name_en: string;
+  country: string;
+  country_color: string;
   visits: number;
+};
+
+export type CountryLegendEntry = {
+  country: string;
+  color: string;
 };
 
 export type JourneyMapData = {
   routes: GeoJSON.FeatureCollection<GeoJSON.LineString, RouteProperties>;
   stops: GeoJSON.FeatureCollection<GeoJSON.Point, StopProperties>;
   coordinates: Coordinate[];
+  countryLegend: CountryLegendEntry[];
 };
 
 type Stop = StopProperties & { coordinate: Coordinate };
@@ -31,6 +40,7 @@ type Stop = StopProperties & { coordinate: Coordinate };
 export function createJourneyMapData(trips: Trip[]): JourneyMapData {
   const routeFeatures: Array<GeoJSON.Feature<GeoJSON.LineString, RouteProperties>> = [];
   const stops = new Map<string, Stop>();
+  const countries = new Map<string, CountryLegendEntry>();
   const coordinates: Coordinate[] = [];
 
   for (const trip of trips) {
@@ -54,6 +64,11 @@ export function createJourneyMapData(trips: Trip[]): JourneyMapData {
     });
 
     for (const place of [trip.origin, trip.destination]) {
+      const country = place.country.trim();
+      const countryColorValue = countryColor(country);
+      const countryKey = country.toLocaleLowerCase();
+      if (!countries.has(countryKey)) countries.set(countryKey, { country, color: countryColorValue });
+
       const existing = stops.get(place.id);
       if (existing) {
         existing.visits += 1;
@@ -64,6 +79,8 @@ export function createJourneyMapData(trips: Trip[]): JourneyMapData {
         code: place.code,
         name_zh: place.name_zh,
         name_en: place.name_en,
+        country,
+        country_color: countryColorValue,
         visits: 1,
         coordinate: [place.longitude, place.latitude],
       });
@@ -81,5 +98,6 @@ export function createJourneyMapData(trips: Trip[]): JourneyMapData {
       })),
     },
     coordinates,
+    countryLegend: [...countries.values()].sort((first, second) => first.country.localeCompare(second.country, "en")),
   };
 }
