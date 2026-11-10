@@ -91,6 +91,7 @@ export function TripMap({ language, trips }: TripMapProps) {
         container,
         center: [20, 26],
         zoom: 1.2,
+        renderWorldCopies: false,
         attributionControl: { compact: true },
         style: {
           version: 8,

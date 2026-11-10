@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { calculateJourneyStatistics } from "@/lib/statistics";
+import { calculateJourneyStatistics, EARTH_EQUATORIAL_CIRCUMFERENCE_KM, earthLapsForDistance } from "@/lib/statistics";
 import { DEMO_TRIPS } from "@/lib/demo-trips";
 
 describe("journey statistics", () => {
@@ -20,6 +20,12 @@ describe("journey statistics", () => {
       totalDurationMin: 180,
       countriesVisited: 3,
       modeCounts: { flight: 1, hsr: 0, rail: 1, other: 0 },
+      modeDistanceKm: { flight: 100, hsr: 0, rail: 200, other: 0 },
     });
+  });
+
+  it("converts distance to an approximate number of Earth laps", () => {
+    expect(earthLapsForDistance(0)).toBe(0);
+    expect(earthLapsForDistance(EARTH_EQUATORIAL_CIRCUMFERENCE_KM)).toBeCloseTo(1);
   });
 });

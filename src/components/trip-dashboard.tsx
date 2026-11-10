@@ -5,7 +5,7 @@ import { AppNavigation } from "@/components/app-navigation";
 import { TripMap } from "@/components/trip-map";
 import { clearDemoTrips, listTrips, loadDemoTrips, type TripFilters } from "@/db/trips";
 import { modeColor } from "@/lib/journey-colors";
-import { calculateJourneyStatistics } from "@/lib/statistics";
+import { calculateJourneyStatistics, earthLapsForDistance } from "@/lib/statistics";
 import type { Trip, TripMode } from "@/lib/types";
 
 type Language = "zh" | "en";
@@ -104,6 +104,45 @@ function formatDuration(minutes: number, language: Language) {
   const hours = Math.floor(minutes / 60);
   const remainder = minutes % 60;
   return language === "zh" ? `${hours} 小時 ${remainder} 分` : `${hours}h ${remainder}m`;
+}
+
+function formatDistance(distanceKm: number, language: Language) {
+  return new Intl.NumberFormat(language === "zh" ? "zh-TW" : "en-GB").format(Math.round(distanceKm));
+}
+
+function formatEarthLaps(distanceKm: number, language: Language) {
+  const laps = earthLapsForDistance(distanceKm);
+
+  if (laps === 0) return "0";
+  if (laps < 0.01) return language === "zh" ? "少於 0.01" : "< 0.01";
+
+  return new Intl.NumberFormat(language === "zh" ? "zh-TW" : "en-GB", {
+    maximumFractionDigits: laps >= 10 ? 1 : 2,
+    minimumFractionDigits: laps < 10 ? 2 : 0,
+  }).format(laps);
+}
+
+function formatDistanceDetail(
+  modeDistanceKm: Record<TripMode, number>,
+  totalDistanceKm: number,
+  language: Language,
+) {
+  const lapLabel = language === "zh" ? "圈" : "laps";
+  const total = language === "zh"
+    ? `約環繞地球 ${formatEarthLaps(totalDistanceKm, language)} ${lapLabel}`
+    : `≈ ${formatEarthLaps(totalDistanceKm, language)} Earth ${lapLabel}`;
+  const flight = language === "zh"
+    ? `飛行 ${formatDistance(modeDistanceKm.flight, language)} km（${formatEarthLaps(modeDistanceKm.flight, language)} ${lapLabel}）`
+    : `Flight ${formatDistance(modeDistanceKm.flight, language)} km (${formatEarthLaps(modeDistanceKm.flight, language)} ${lapLabel})`;
+  const railDistanceKm = modeDistanceKm.hsr + modeDistanceKm.rail;
+  const rail = language === "zh"
+    ? `鐵路／高鐵 ${formatDistance(railDistanceKm, language)} km（${formatEarthLaps(railDistanceKm, language)} ${lapLabel}）`
+    : `Rail & HSR ${formatDistance(railDistanceKm, language)} km (${formatEarthLaps(railDistanceKm, language)} ${lapLabel})`;
+  const other = language === "zh"
+    ? `其他交通 ${formatDistance(modeDistanceKm.other, language)} km（${formatEarthLaps(modeDistanceKm.other, language)} ${lapLabel}）`
+    : `Other ${formatDistance(modeDistanceKm.other, language)} km (${formatEarthLaps(modeDistanceKm.other, language)} ${lapLabel})`;
+
+  return [total, flight, rail, ...(modeDistanceKm.other > 0 ? [other] : [])].join(" · ");
 }
 
 function withTimeout<T>(task: Promise<T>, timeoutMs = 6000): Promise<T> {
@@ -290,7 +329,11 @@ export function TripDashboard() {
 
         <section className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label={c.visible}>
           <StatsCard label={c.journeys} value={String(statistics.totalTrips)} />
-          <StatsCard label={c.distance} value={`${new Intl.NumberFormat(language === "zh" ? "zh-TW" : "en-GB").format(Math.round(statistics.totalDistanceKm))} km`} />
+          <StatsCard
+            label={c.distance}
+            value={`${formatDistance(statistics.totalDistanceKm, language)} km`}
+            detail={statistics.totalDistanceKm > 0 ? formatDistanceDetail(statistics.modeDistanceKm, statistics.totalDistanceKm, language) : undefined}
+          />
           <StatsCard label={c.duration} value={formatDuration(statistics.totalDurationMin, language)} />
           <StatsCard label={c.countries} value={String(statistics.countriesVisited)} />
         </section>
