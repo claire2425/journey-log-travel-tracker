@@ -50,6 +50,17 @@ describe("trip repository", () => {
     expect((await listTrips({ search: "london" }, database))[0]?.id).toBe("trip-1");
   });
 
+  it("filters by the origin's local departure year across a UTC year boundary", async () => {
+    await addTrip(trip({
+      id: "taipei-new-year",
+      departure: "2025-12-31T16:30:00.000Z",
+      arrival: "2025-12-31T19:30:00.000Z",
+    }), database);
+
+    expect((await listTrips({ year: 2026 }, database)).map((item) => item.id)).toEqual(["taipei-new-year"]);
+    expect(await listTrips({ year: 2025 }, database)).toHaveLength(0);
+  });
+
   it("combines multi-select journey filters while preserving legacy mode and year filters", async () => {
     await addTrip(trip({ purpose: "business" }), database);
     await addTrip(trip({

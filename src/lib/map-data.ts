@@ -1,4 +1,5 @@
 import { interpolateGreatCircle, type Coordinate } from "@/lib/geo";
+import { getJourneyDepartureLocalDate } from "@/lib/journey-date";
 import { countryColor } from "@/lib/journey-colors";
 import { classifyDisplayedTripLegs, type RoutePattern } from "@/lib/route-patterns";
 import type { Trip } from "@/lib/types";
@@ -56,7 +57,7 @@ export function createJourneyMapData(trips: Trip[]): JourneyMapData {
       properties: {
         id: trip.id,
         mode: trip.mode,
-        date: trip.departure.slice(0, 10),
+        date: getJourneyDepartureLocalDate(trip),
         origin_zh: trip.origin.name_zh,
         destination_zh: trip.destination.name_zh,
         origin_en: trip.origin.name_en,

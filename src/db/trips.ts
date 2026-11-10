@@ -1,5 +1,6 @@
 import { db as defaultDb, type JourneyDatabase } from "@/db/index";
 import { getDemoTrips } from "@/lib/demo-trips";
+import { getJourneyDepartureLocalYear } from "@/lib/journey-date";
 import { getPlaceContinent, getTripDistanceBand } from "@/lib/geography";
 import { TripSchema, type Continent, type DistanceBand, type Trip, type TripMode, type TripPurposeFilter } from "@/lib/types";
 
@@ -61,7 +62,7 @@ export async function listTrips(filters: TripFilters = {}, database: JourneyData
 
   return trips.filter((trip) => {
     if (selectedModes.size > 0 && !selectedModes.has(trip.mode)) return false;
-    if (selectedYears.size > 0 && !selectedYears.has(new Date(trip.departure).getUTCFullYear())) return false;
+    if (selectedYears.size > 0 && !selectedYears.has(getJourneyDepartureLocalYear(trip))) return false;
     if (selectedContinents.size > 0) {
       const endpointContinents = [getPlaceContinent(trip.origin), getPlaceContinent(trip.destination)];
       if (!endpointContinents.some((continent) => continent && selectedContinents.has(continent))) return false;

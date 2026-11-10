@@ -32,4 +32,17 @@ describe("journey map data", () => {
     expect(routeProperties[returnByRail.id]?.route_pattern).toBe("paired_return");
     expect(routeProperties[DEMO_TRIPS[6].id]?.route_pattern).toBe("one_way");
   });
+
+  it("uses the origin-local departure date for route popup data", () => {
+    const taipeiNewYear = {
+      ...DEMO_TRIPS[1],
+      id: "taipei-new-year",
+      departure: "2025-12-31T16:30:00.000Z",
+      arrival: "2025-12-31T19:30:00.000Z",
+    };
+
+    const data = createJourneyMapData([taipeiNewYear]);
+
+    expect(data.routes.features[0]?.properties.date).toBe("2026-01-01");
+  });
 });
