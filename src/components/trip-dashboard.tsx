@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AppNavigation } from "@/components/app-navigation";
 import { TripMap } from "@/components/trip-map";
 import { clearDemoTrips, listTrips, loadDemoTrips, type TripFilters } from "@/db/trips";
 import { modeColor } from "@/lib/journey-colors";
@@ -273,6 +274,8 @@ export function TripDashboard() {
             </div>
           </div>
         </header>
+
+        <div className="mt-6"><AppNavigation current="journeys" language={language} /></div>
 
         <section className="mt-8 flex flex-col gap-4 rounded-3xl bg-slate-900 p-6 text-white shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
