@@ -2,7 +2,7 @@
 
 ## Goal
 
-A personal travel log for flights, high-speed rail and regular trains, with a route map, statistics and a shareable yearly recap. It is a portfolio project, so code quality, tests and a polished UI matter.
+A personal travel log for flights, rail (including high-speed rail), and cruises, with a route map, statistics and a shareable yearly recap. It is a portfolio project, so code quality, tests and a polished UI matter.
 
 ## Stack
 

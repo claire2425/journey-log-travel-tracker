@@ -140,8 +140,8 @@ export function TripMap({ language, trips }: TripMapProps) {
             "match",
             ["get", "mode"],
             "flight", modeColor("flight"),
-            "hsr", modeColor("hsr"),
             "rail", modeColor("rail"),
+            "cruise", modeColor("cruise"),
             modeColor("other"),
           ],
         },
@@ -221,7 +221,7 @@ export function TripMap({ language, trips }: TripMapProps) {
       <div className="space-y-2 px-5 py-3 text-xs font-medium text-slate-500">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <span className="font-bold text-slate-700 dark:text-slate-200">{language === "zh" ? "路線／交通方式" : "Routes / transport"}</span>
-          {(["flight", "hsr", "rail", "other"] as const).map((mode) => <span className="flex items-center gap-2" key={mode}><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: modeColor(mode) }} />{language === "zh" ? { flight: "飛行", hsr: "高鐵", rail: "鐵路", other: "其他" }[mode] : { flight: "Flight", hsr: "High-speed rail", rail: "Rail", other: "Other" }[mode]}</span>)}
+          {(["flight", "rail", "cruise", "other"] as const).map((mode) => <span className="flex items-center gap-2" key={mode}><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: modeColor(mode) }} />{language === "zh" ? { flight: "飛行", rail: "火車／高鐵", cruise: "郵輪", other: "其他" }[mode] : { flight: "Flight", rail: "Rail / high-speed rail", cruise: "Cruise", other: "Other" }[mode]}</span>)}
         </div>
         {mapData.countryLegend.length > 0 ? <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <span className="font-bold text-slate-700 dark:text-slate-200">{language === "zh" ? "站點／國家或地區" : "Stops / country or region"}</span>

@@ -1,7 +1,12 @@
 import { z } from "zod";
 
 export const placeKinds = ["airport", "station", "custom"] as const;
-export const tripModes = ["flight", "hsr", "rail", "other"] as const;
+export const tripModes = ["flight", "rail", "cruise", "other"] as const;
+
+const TripModeSchema = z.preprocess(
+  (value) => value === "hsr" ? "rail" : value,
+  z.enum(tripModes),
+);
 
 const CurrencyCodeSchema = z.string().trim().regex(/^[A-Z]{3}$/, "Use a three-letter currency code.");
 
@@ -67,7 +72,7 @@ export const PlaceSchema = z.object({
 
 export const TripSchema = z.object({
   id: z.string().min(1),
-  mode: z.enum(tripModes),
+  mode: TripModeSchema,
   origin: PlaceSchema,
   destination: PlaceSchema,
   departure: z.string().datetime({ offset: true }),

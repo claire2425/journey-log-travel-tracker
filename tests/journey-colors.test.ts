@@ -4,8 +4,8 @@ import { countryColor, modeColor } from "@/lib/journey-colors";
 describe("journey colours", () => {
   it("uses one shared colour for each transport mode", () => {
     expect(modeColor("flight")).toBe("#0f766e");
-    expect(modeColor("hsr")).toBe("#d97706");
     expect(modeColor("rail")).toBe("#2563eb");
+    expect(modeColor("cruise")).toBe("#d97706");
     expect(modeColor("other")).toBe("#7c3aed");
   });
 

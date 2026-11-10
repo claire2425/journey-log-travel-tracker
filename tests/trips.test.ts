@@ -1,9 +1,10 @@
 import "fake-indexeddb/auto";
+import Dexie from "dexie";
 import { beforeEach, describe, expect, it } from "vitest";
 import { JourneyDatabase } from "@/db/index";
 import { addTrip, clearDemoTrips, deleteTrip, getTrip, listTrips, loadDemoTrips, updateTrip } from "@/db/trips";
 import { DEMO_TRIPS } from "@/lib/demo-trips";
-import type { Place, Trip } from "@/lib/types";
+import { TripSchema, type Place, type Trip } from "@/lib/types";
 
 const tpe: Place = { id: "tpe", name_zh: "桃園", name_en: "Taipei", code: "TPE", kind: "airport", latitude: 25.0797, longitude: 121.2342, country: "Taiwan", time_zone: "Asia/Taipei" };
 const lhr: Place = { id: "lhr", name_zh: "倫敦希斯洛", name_en: "London Heathrow", code: "LHR", kind: "airport", latitude: 51.47, longitude: -0.4543, country: "United Kingdom", time_zone: "Europe/London" };
@@ -39,9 +40,38 @@ describe("trip repository", () => {
   it("filters trips by mode, year and text", async () => {
     await addTrip(trip(), database);
     await addTrip(trip({ id: "trip-2", mode: "rail", departure: "2025-06-01T09:00:00+08:00", arrival: "2025-06-01T10:00:00+08:00", service_number: "THSR 805" }), database);
+    await addTrip(trip({ id: "trip-3", mode: "cruise", departure: "2024-06-01T09:00:00+08:00", arrival: "2024-06-01T10:00:00+08:00", service_number: "SEA 805" }), database);
     expect(await listTrips({ mode: "rail" }, database)).toHaveLength(1);
+    expect(await listTrips({ mode: "cruise" }, database)).toHaveLength(1);
     expect(await listTrips({ year: 2026 }, database)).toHaveLength(1);
     expect((await listTrips({ search: "london" }, database))[0]?.id).toBe("trip-1");
+  });
+
+  it("normalizes legacy high-speed rail records and preserves their details during the database upgrade", async () => {
+    const legacyDatabaseName = `legacy-${crypto.randomUUID()}`;
+    const legacyDatabase = new Dexie(legacyDatabaseName);
+    legacyDatabase.version(2).stores({
+      trips: "id, departure, mode, origin.code, destination.code, is_demo",
+      custom_places: "id, code, kind",
+      expense_entries: "id, date, paid_by, currency, category",
+      expense_settings: "id",
+    });
+    await legacyDatabase.open();
+    await legacyDatabase.table("trips").add({ ...trip({ id: "legacy-hsr" }), mode: "hsr" });
+    legacyDatabase.close();
+
+    const upgradedDatabase = new JourneyDatabase(legacyDatabaseName);
+    await upgradedDatabase.open();
+
+    expect((await upgradedDatabase.trips.get("legacy-hsr"))?.mode).toBe("rail");
+    expect((await getTrip("legacy-hsr", upgradedDatabase))?.origin.code).toBe("TPE");
+    expect(await listTrips({ mode: "rail" }, upgradedDatabase)).toHaveLength(1);
+    upgradedDatabase.close();
+  });
+
+  it("accepts cruises and normalizes legacy high-speed rail input at the validation boundary", () => {
+    expect(TripSchema.parse({ ...trip(), mode: "cruise" }).mode).toBe("cruise");
+    expect(TripSchema.parse({ ...trip(), mode: "hsr" }).mode).toBe("rail");
   });
 
   it("removes only demo trips", async () => {

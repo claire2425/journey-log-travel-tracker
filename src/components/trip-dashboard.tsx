@@ -14,7 +14,7 @@ const copy = {
   zh: {
     eyebrow: "你的旅程，你的裝置",
     title: "Journey Log",
-    subtitle: "私密、以裝置為先的飛行與鐵路旅程紀錄。資料只儲存在這個瀏覽器。",
+    subtitle: "私密、以裝置為先的飛行、火車／高鐵與郵輪旅程紀錄。資料只儲存在這個瀏覽器。",
     sample: "載入示範旅程",
     clear: "清除示範資料",
     loading: "正在讀取旅程⋯",
@@ -49,7 +49,7 @@ const copy = {
   en: {
     eyebrow: "YOUR TRAVEL, YOUR DEVICE",
     title: "Journey Log",
-    subtitle: "Private, local-first records for flights and rail journeys. Your data stays in this browser.",
+    subtitle: "Private, local-first records for flights, rail journeys including high-speed rail, and cruises. Your data stays in this browser.",
     sample: "Load sample journeys",
     clear: "Clear sample data",
     loading: "Loading journeys…",
@@ -84,11 +84,11 @@ const copy = {
 } as const;
 
 const modeLabels: Record<Language, Record<TripMode, string>> = {
-  zh: { flight: "飛行", hsr: "高鐵", rail: "鐵路", other: "其他" },
-  en: { flight: "Flight", hsr: "High-speed rail", rail: "Rail", other: "Other" },
+  zh: { flight: "飛行", rail: "火車／高鐵", cruise: "郵輪", other: "其他" },
+  en: { flight: "Flight", rail: "Rail / high-speed rail", cruise: "Cruise", other: "Other" },
 };
 
-const modeOrder: TripMode[] = ["flight", "hsr", "rail", "other"];
+const modeOrder: TripMode[] = ["flight", "rail", "cruise", "other"];
 
 function formatDate(value: string, language: Language) {
   const date = new Date(`${value.slice(0, 10)}T12:00:00Z`);
@@ -131,18 +131,17 @@ function formatDistanceDetail(
   const total = language === "zh"
     ? `約環繞地球 ${formatEarthLaps(totalDistanceKm, language)} ${lapLabel}`
     : `≈ ${formatEarthLaps(totalDistanceKm, language)} Earth ${lapLabel}`;
-  const flight = language === "zh"
-    ? `飛行 ${formatDistance(modeDistanceKm.flight, language)} km（${formatEarthLaps(modeDistanceKm.flight, language)} ${lapLabel}）`
-    : `Flight ${formatDistance(modeDistanceKm.flight, language)} km (${formatEarthLaps(modeDistanceKm.flight, language)} ${lapLabel})`;
-  const railDistanceKm = modeDistanceKm.hsr + modeDistanceKm.rail;
-  const rail = language === "zh"
-    ? `鐵路／高鐵 ${formatDistance(railDistanceKm, language)} km（${formatEarthLaps(railDistanceKm, language)} ${lapLabel}）`
-    : `Rail & HSR ${formatDistance(railDistanceKm, language)} km (${formatEarthLaps(railDistanceKm, language)} ${lapLabel})`;
-  const other = language === "zh"
-    ? `其他交通 ${formatDistance(modeDistanceKm.other, language)} km（${formatEarthLaps(modeDistanceKm.other, language)} ${lapLabel}）`
-    : `Other ${formatDistance(modeDistanceKm.other, language)} km (${formatEarthLaps(modeDistanceKm.other, language)} ${lapLabel})`;
+  const byMode = modeOrder
+    .filter((mode) => modeDistanceKm[mode] > 0)
+    .map((mode) => {
+      const distance = formatDistance(modeDistanceKm[mode], language);
+      const laps = formatEarthLaps(modeDistanceKm[mode], language);
+      return language === "zh"
+        ? `${modeLabels.zh[mode]} ${distance} km（${laps} ${lapLabel}）`
+        : `${modeLabels.en[mode]} ${distance} km (${laps} ${lapLabel})`;
+    });
 
-  return [total, flight, rail, ...(modeDistanceKm.other > 0 ? [other] : [])].join(" · ");
+  return [total, ...byMode].join(" · ");
 }
 
 function withTimeout<T>(task: Promise<T>, timeoutMs = 6000): Promise<T> {

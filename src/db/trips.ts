@@ -25,11 +25,12 @@ export async function deleteTrip(id: string, database: JourneyDatabase = default
 }
 
 export async function getTrip(id: string, database: JourneyDatabase = defaultDb): Promise<Trip | undefined> {
-  return database.trips.get(id);
+  const trip = await database.trips.get(id);
+  return trip ? TripSchema.parse(trip) : undefined;
 }
 
 export async function listTrips(filters: TripFilters = {}, database: JourneyDatabase = defaultDb): Promise<Trip[]> {
-  const trips = await database.trips.orderBy("departure").reverse().toArray();
+  const trips = (await database.trips.orderBy("departure").reverse().toArray()).map((trip) => TripSchema.parse(trip));
   const needle = filters.search?.trim().toLocaleLowerCase();
   return trips.filter((trip) => {
     if (filters.mode && trip.mode !== filters.mode) return false;

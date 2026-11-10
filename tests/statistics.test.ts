@@ -13,14 +13,15 @@ describe("journey statistics", () => {
       duration_min: 120,
       mode: "rail" as const,
     };
+    const cruise = { ...DEMO_TRIPS[0], id: "cruise-trip", distance_km: 50, duration_min: 30, mode: "cruise" as const };
 
-    expect(calculateJourneyStatistics([flight, rail])).toEqual({
-      totalTrips: 2,
-      totalDistanceKm: 300,
-      totalDurationMin: 180,
+    expect(calculateJourneyStatistics([flight, rail, cruise])).toEqual({
+      totalTrips: 3,
+      totalDistanceKm: 350,
+      totalDurationMin: 210,
       countriesVisited: 3,
-      modeCounts: { flight: 1, hsr: 0, rail: 1, other: 0 },
-      modeDistanceKm: { flight: 100, hsr: 0, rail: 200, other: 0 },
+      modeCounts: { flight: 1, rail: 1, cruise: 1, other: 0 },
+      modeDistanceKm: { flight: 100, rail: 200, cruise: 50, other: 0 },
     });
   });
 

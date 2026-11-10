@@ -19,6 +19,15 @@ export class JourneyDatabase extends Dexie {
       expense_entries: "id, date, paid_by, currency, category",
       expense_settings: "id",
     });
+    this.version(3).stores({
+      trips: "id, departure, mode, origin.code, destination.code, is_demo",
+      custom_places: "id, code, kind",
+      expense_entries: "id, date, paid_by, currency, category",
+      expense_settings: "id",
+    }).upgrade((transaction) => transaction.table("trips").toCollection().modify((trip) => {
+      const record = trip as { mode?: unknown };
+      if (record.mode === "hsr") record.mode = "rail";
+    }));
   }
 }
 

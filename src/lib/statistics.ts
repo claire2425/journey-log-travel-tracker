@@ -21,8 +21,8 @@ export function earthLapsForDistance(distanceKm: number) {
 }
 
 export function calculateJourneyStatistics(trips: Trip[]): JourneyStatistics {
-  const modeCounts: Record<TripMode, number> = { flight: 0, hsr: 0, rail: 0, other: 0 };
-  const modeDistanceKm: Record<TripMode, number> = { flight: 0, hsr: 0, rail: 0, other: 0 };
+  const modeCounts: Record<TripMode, number> = { flight: 0, rail: 0, cruise: 0, other: 0 };
+  const modeDistanceKm: Record<TripMode, number> = { flight: 0, rail: 0, cruise: 0, other: 0 };
   const countries = new Set<string>();
   let totalDistanceKm = 0;
   let totalDurationMin = 0;
