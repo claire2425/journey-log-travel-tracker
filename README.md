@@ -40,9 +40,12 @@ pnpm build
   from [GeoNames](https://www.geonames.org/export/) (CC BY 4.0). The local
   index is a travel-recording aid, not a live timetable or an official
   operational directory.
-- Clearing browser site data removes local records. Export/backup is not yet
-  implemented, so keep important source records elsewhere until that feature is
-  added.
+- The journey dashboard can create a PNG recap for the currently visible
+  journeys, and a fully converted expense ledger can create a PNG spending
+  recap. These images are generated locally only after the person chooses to
+  download them; they are sharing snapshots, not a restorable data backup.
+- Clearing browser site data removes local records. Keep important source
+  records elsewhere until a full backup/import feature is added.
 
 ## Development notes
 

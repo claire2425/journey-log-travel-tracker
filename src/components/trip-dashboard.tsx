@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AddJourneyForm } from "@/components/add-journey-form";
 import { AppNavigation } from "@/components/app-navigation";
 import { TripMap } from "@/components/trip-map";
+import { TravelRecapExport } from "@/components/travel-recap-export";
 import { listCustomPlaces } from "@/db/places";
 import { CustomPlaceInUseError, deleteCustomPlace, saveJourneyWithCustomPlaces, updateCustomPlaceAndJourneyReferences } from "@/db/journey-storage";
 import { clearDemoTrips, deleteTrip, listTrips, loadDemoTrips, type TripFilters } from "@/db/trips";
@@ -15,6 +16,7 @@ import { getJourneyDepartureLocalDate, getJourneyDepartureLocalYear } from "@/li
 import { lookupOperator } from "@/lib/operator-directory";
 import { displayPlaceCode } from "@/lib/place-display";
 import { calculateJourneyStatistics, earthLapsForDistance } from "@/lib/statistics";
+import { buildTravelRecap } from "@/lib/travel-recap";
 import { continentFilters, journeyDistanceBands, tripPurposes, type Continent, type ContinentFilter, type DistanceBand, type Place, type Trip, type TripMode, type TripPurposeFilter } from "@/lib/types";
 import { calculateAnnualVisitStatistics } from "@/lib/visit-statistics";
 
@@ -439,6 +441,7 @@ export function TripDashboard() {
   const years = useMemo(() => [...new Set(allTrips.map((trip) => getJourneyDepartureLocalYear(trip)))].sort((a, b) => b - a), [allTrips]);
   const statistics = useMemo(() => calculateJourneyStatistics(trips), [trips]);
   const annualVisits = useMemo(() => calculateAnnualVisitStatistics(trips), [trips]);
+  const travelRecap = useMemo(() => buildTravelRecap(trips), [trips]);
   const selectedModes = [...new Set([filters.mode, ...(filters.modes ?? [])].filter((mode): mode is TripMode => Boolean(mode)))];
   const selectedYears = [...new Set([filters.year, ...(filters.years ?? [])].filter((year): year is number => typeof year === "number"))];
   const selectedContinents = filters.continents ?? [];
@@ -649,7 +652,7 @@ export function TripDashboard() {
 
         <section className="mt-8 flex flex-col gap-4 rounded-3xl bg-slate-900 p-6 text-white shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-semibold text-teal-300">{c.visible} {allTrips.length} {allTrips.length === 1 ? c.trip : c.journeys}</p>
+            <p className="text-sm font-semibold text-teal-300">{c.visible} {trips.length} {trips.length === 1 ? c.trip : c.journeys}</p>
             <p className="mt-1 text-sm text-slate-300">{c.sampleNote}</p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -679,6 +682,8 @@ export function TripDashboard() {
           <StatsCard label={c.duration} value={formatDuration(statistics.totalDurationMin, language)} />
           <StatsCard label={c.countries} value={String(statistics.countriesVisited)} />
         </section>
+
+        <TravelRecapExport language={language} recap={travelRecap} />
 
         {annualVisits.length ? <section className="mt-8 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900" aria-labelledby="annual-visits-title">
           <div className="p-5">
