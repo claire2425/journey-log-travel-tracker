@@ -1,7 +1,8 @@
 import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it } from "vitest";
 import { JourneyDatabase } from "@/db/index";
-import { addTrip, clearDemoTrips, deleteTrip, getTrip, listTrips, updateTrip } from "@/db/trips";
+import { addTrip, clearDemoTrips, deleteTrip, getTrip, listTrips, loadDemoTrips, updateTrip } from "@/db/trips";
+import { DEMO_TRIPS } from "@/lib/demo-trips";
 import type { Place, Trip } from "@/lib/types";
 
 const tpe: Place = { id: "tpe", name_zh: "桃園", name_en: "Taipei", code: "TPE", kind: "airport", latitude: 25.0797, longitude: 121.2342, country: "Taiwan", time_zone: "Asia/Taipei" };
@@ -48,6 +49,14 @@ describe("trip repository", () => {
     await addTrip(trip({ id: "real-trip" }), database);
     await clearDemoTrips(database);
     expect(await listTrips({}, database)).toHaveLength(1);
+    expect(await getTrip("real-trip", database)).toBeDefined();
+  });
+
+  it("loads fixed demo data without duplicates and preserves real trips", async () => {
+    await addTrip(trip({ id: "real-trip" }), database);
+    expect(await loadDemoTrips(database)).toBe(DEMO_TRIPS.length);
+    expect(await loadDemoTrips(database)).toBe(DEMO_TRIPS.length);
+    expect(await listTrips({}, database)).toHaveLength(DEMO_TRIPS.length + 1);
     expect(await getTrip("real-trip", database)).toBeDefined();
   });
 });

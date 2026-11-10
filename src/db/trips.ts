@@ -1,4 +1,5 @@
 import { db as defaultDb, type JourneyDatabase } from "@/db/index";
+import { getDemoTrips } from "@/lib/demo-trips";
 import { TripSchema, type Trip, type TripMode } from "@/lib/types";
 
 export type TripFilters = {
@@ -41,4 +42,10 @@ export async function listTrips(filters: TripFilters = {}, database: JourneyData
 
 export async function clearDemoTrips(database: JourneyDatabase = defaultDb): Promise<void> {
   await database.trips.filter((trip) => trip.is_demo).delete();
+}
+
+export async function loadDemoTrips(database: JourneyDatabase = defaultDb): Promise<number> {
+  const trips = getDemoTrips().map((trip) => TripSchema.parse(trip));
+  await database.trips.bulkPut(trips);
+  return trips.length;
 }
