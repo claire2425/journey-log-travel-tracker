@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useMemo, useState, type FormEvent, type KeyboardEvent } from "react";
+import { PlaceCombobox } from "@/components/place-combobox";
 import { buildManualTrip } from "@/lib/journey-entry";
 import { getLocalDateTimeInputValue } from "@/lib/journey-date";
 import { identifyOperator, lookupOperator, type OperatorDirectoryEntry } from "@/lib/operator-directory";
@@ -223,8 +224,6 @@ export function AddJourneyForm({
   const [messageKind, setMessageKind] = useState<FormMessageKind>(null);
   const [customPlaceError, setCustomPlaceError] = useState("");
   const [purposeError, setPurposeError] = useState(false);
-  const originListId = useId();
-  const destinationListId = useId();
   const customPlaceErrorId = useId();
   const purposeErrorId = useId();
 
@@ -239,7 +238,8 @@ export function AddJourneyForm({
     origin: "出發地",
     destination: "目的地",
     locationPlaceholder: "輸入代碼、機場、車站或城市",
-    locationHint: "開始輸入後可從本機地點清單選取。飛行只顯示機場；火車／高鐵只顯示車站。",
+    locationHint: "輸入代碼、中文／英文名稱或城市後會立即顯示本機建議。飛行只顯示機場；火車／高鐵只顯示車站。",
+    noPlaceMatches: "找不到符合的地點；可使用下方按鈕新增自訂地點。",
     addPlace: "找不到地點？新增自訂地點",
     addingPlace: "新增自訂地點",
     nameZh: "中文名稱",
@@ -304,7 +304,8 @@ export function AddJourneyForm({
     origin: "Origin",
     destination: "Destination",
     locationPlaceholder: "Type a code, airport, station, or city",
-    locationHint: "Start typing to choose from the local place list. Flights show airports; rail shows stations.",
+    locationHint: "Type a code, Chinese/English name, or city to see local suggestions immediately. Flights show airports; rail shows stations.",
+    noPlaceMatches: "No matching place. Use the button below to add a custom place.",
     addPlace: "Can’t find it? Add a custom place",
     addingPlace: "Add a custom place",
     nameZh: "Chinese name",
@@ -441,21 +442,27 @@ export function AddJourneyForm({
   }
 
   function findPlace(value: string): Place | undefined {
-    const normalized = value.trim().toLocaleLowerCase();
+    const normalized = value.normalize("NFKC").trim().toLocaleLowerCase();
     if (!normalized) return undefined;
     return availablePlaces.find((place) => (
-      placeLabel(place, language).toLocaleLowerCase() === normalized
-      || place.code.toLocaleLowerCase() === normalized
+      placeLabel(place, language).normalize("NFKC").toLocaleLowerCase() === normalized
+      || place.code.normalize("NFKC").toLocaleLowerCase() === normalized
     ));
   }
 
-  function selectEndpoint(endpoint: Endpoint, value: string) {
+  function updateEndpointQuery(endpoint: Endpoint, value: string) {
     const place = findPlace(value);
     const setId = endpoint === "origin" ? setOriginId : setDestinationId;
     const setQuery = endpoint === "origin" ? setOriginQuery : setDestinationQuery;
     setQuery(value);
     setId(place?.id ?? "");
-    if (place) setQuery(placeLabel(place, language));
+  }
+
+  function selectEndpointPlace(endpoint: Endpoint, place: Place) {
+    const setId = endpoint === "origin" ? setOriginId : setDestinationId;
+    const setQuery = endpoint === "origin" ? setOriginQuery : setDestinationQuery;
+    setId(place.id);
+    setQuery(placeLabel(place, language));
   }
 
   function updateDraft(field: keyof PlaceDraft, value: string) {
@@ -636,22 +643,18 @@ export function AddJourneyForm({
             {(["origin", "destination"] as Endpoint[]).map((endpoint) => {
               const label = endpoint === "origin" ? c.origin : c.destination;
               const query = endpoint === "origin" ? originQuery : destinationQuery;
-              const listId = endpoint === "origin" ? originListId : destinationListId;
               return (
                 <div key={endpoint}>
-                  <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
-                    {label}
-                    <input
-                      className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 font-normal text-slate-900 outline-none ring-teal-500 transition placeholder:text-slate-400 focus:ring-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
-                      list={listId}
-                      onChange={(event) => selectEndpoint(endpoint, event.target.value)}
-                      placeholder={c.locationPlaceholder}
-                      value={query}
-                    />
-                  </label>
-                  <datalist id={listId}>
-                    {availablePlaces.map((place) => <option key={place.id} value={placeLabel(place, language)} />)}
-                  </datalist>
+                  <PlaceCombobox
+                    label={label}
+                    language={language}
+                    noMatches={c.noPlaceMatches}
+                    onChange={(value) => updateEndpointQuery(endpoint, value)}
+                    onSelect={(place) => selectEndpointPlace(endpoint, place)}
+                    placeholder={c.locationPlaceholder}
+                    places={availablePlaces}
+                    value={query}
+                  />
                   <button className="mt-2 text-xs font-bold text-teal-700 hover:text-teal-900 dark:text-teal-300" onClick={() => beginCustomPlace(endpoint)} type="button">{c.addPlace}</button>
                 </div>
               );
