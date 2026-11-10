@@ -12,6 +12,7 @@ import { getPlaceContinent, getTripDistanceBand } from "@/lib/geography";
 import { modeColor } from "@/lib/journey-colors";
 import { getJourneyDepartureLocalDate, getJourneyDepartureLocalYear } from "@/lib/journey-date";
 import { lookupOperator } from "@/lib/operator-directory";
+import { displayPlaceCode } from "@/lib/place-display";
 import { calculateJourneyStatistics, earthLapsForDistance } from "@/lib/statistics";
 import { continentFilters, journeyDistanceBands, tripPurposes, type Continent, type ContinentFilter, type DistanceBand, type Place, type Trip, type TripMode, type TripPurposeFilter } from "@/lib/types";
 import { calculateAnnualVisitStatistics } from "@/lib/visit-statistics";
@@ -64,12 +65,12 @@ const copy = {
     editJourney: "編輯旅程",
     deleteJourneyConfirm: "確定要刪除這趟旅程嗎？此動作無法復原。",
     journeyDeleted: "已刪除旅程。",
-    savedPlaces: "已儲存的自訂地點",
-    savedPlacesHint: "可在這裡補上舊地點的洲別。若地點仍被旅程使用，為避免破壞歷史紀錄，不能直接刪除。",
-    noSavedPlaces: "尚未新增任何自訂地點。",
+    savedPlaces: "已儲存的地點",
+    savedPlacesHint: "手動新增的地點與已選擇的全球參考地點都會保存在這裡。可補上舊地點的洲別；仍被旅程使用的地點不能刪除，以保留歷史紀錄。",
+    noSavedPlaces: "尚未儲存任何地點。",
     deletePlace: "刪除地點",
-    deletePlaceConfirm: "確定要刪除這個未使用的自訂地點嗎？此動作無法復原。",
-    placeDeleted: "已刪除自訂地點。",
+    deletePlaceConfirm: "確定要刪除這個未使用的地點嗎？此動作無法復原。",
+    placeDeleted: "已刪除地點。",
     placeInUse: "這個地點正在被旅程使用，因此不能刪除。",
     placeContinent: "洲別",
     placeContinentSaved: "已更新地點洲別和相關旅程。",
@@ -131,12 +132,12 @@ const copy = {
     editJourney: "Edit journey",
     deleteJourneyConfirm: "Delete this journey? This cannot be undone.",
     journeyDeleted: "Journey deleted.",
-    savedPlaces: "Saved custom places",
-    savedPlacesHint: "You can add a continent to older places here. A place still used by a journey cannot be deleted, so history remains intact.",
-    noSavedPlaces: "No custom places yet.",
+    savedPlaces: "Saved places",
+    savedPlacesHint: "Both manually added places and selected global reference places are saved here. You can add a continent to older places; a place still used by a journey cannot be deleted, so history remains intact.",
+    noSavedPlaces: "No saved places yet.",
     deletePlace: "Delete place",
-    deletePlaceConfirm: "Delete this unused custom place? This cannot be undone.",
-    placeDeleted: "Custom place deleted.",
+    deletePlaceConfirm: "Delete this unused place? This cannot be undone.",
+    placeDeleted: "Place deleted.",
     placeInUse: "This place is still used by a journey, so it cannot be deleted.",
     placeContinent: "Continent",
     placeContinentSaved: "The place continent and related journeys were updated.",
@@ -317,7 +318,7 @@ function StatsCard({ label, value, detail }: { label: string; value: string; det
 }
 
 function CarrierMark({ trip }: { trip: Trip }) {
-  const operator = (trip.mode === "flight" || trip.mode === "rail") ? lookupOperator(trip.carrier_code ?? "", trip.mode) : undefined;
+  const operator = (trip.mode === "flight" || trip.mode === "rail" || trip.mode === "cruise") ? lookupOperator(trip.carrier_code ?? "", trip.mode) : undefined;
   const text = operator?.logo_text ?? trip.carrier_code ?? (trip.carrier.slice(0, 4).toUpperCase() || "—");
   // Do not fetch arbitrary carrier-logo URLs. A future licensed provider can
   // supply vetted local assets after the user has chosen to use that service.
@@ -329,6 +330,8 @@ function TripCard({ trip, language, onDelete, onEdit }: { trip: Trip; language: 
   const transportColor = modeColor(trip.mode);
   const number = formatJourneyDistance(trip.distance_km, language);
   const names = language === "zh" ? { origin: trip.origin.name_zh, destination: trip.destination.name_zh } : { origin: trip.origin.name_en, destination: trip.destination.name_en };
+  const originCode = displayPlaceCode(trip.origin);
+  const destinationCode = displayPlaceCode(trip.destination);
   const distanceBand = getTripDistanceBand(trip);
 
   return (
@@ -344,7 +347,7 @@ function TripCard({ trip, language, onDelete, onEdit }: { trip: Trip; language: 
       <div className="mt-5 flex items-center gap-3">
         <div className="min-w-0 flex-1">
           <p className="truncate text-xl font-bold text-slate-950 dark:text-white">{names.origin}</p>
-          <p className="mt-1 text-sm text-slate-500">{trip.origin.code}</p>
+          {originCode ? <p className="mt-1 text-sm text-slate-500">{originCode}</p> : null}
         </div>
         <div className="flex shrink-0 flex-col items-center" style={{ color: transportColor }} aria-hidden="true">
           <span className="text-lg">→</span>
@@ -352,7 +355,7 @@ function TripCard({ trip, language, onDelete, onEdit }: { trip: Trip; language: 
         </div>
         <div className="min-w-0 flex-1 text-right">
           <p className="truncate text-xl font-bold text-slate-950 dark:text-white">{names.destination}</p>
-          <p className="mt-1 text-sm text-slate-500">{trip.destination.code}</p>
+          {destinationCode ? <p className="mt-1 text-sm text-slate-500">{destinationCode}</p> : null}
         </div>
       </div>
 
@@ -701,7 +704,7 @@ export function TripDashboard() {
           {customPlaces.length === 0 ? <p className="mt-5 text-sm text-slate-500">{c.noSavedPlaces}</p> : <ul className="mt-5 divide-y divide-slate-100 dark:divide-slate-800">
             {customPlaces.map((place) => <li className="flex flex-col gap-3 py-4 first:pt-0 sm:flex-row sm:items-center sm:justify-between" key={place.id}>
               <div>
-                <p className="font-bold text-slate-900 dark:text-white">{language === "zh" ? place.name_zh : place.name_en} <span className="font-medium text-slate-500">· {place.code}</span></p>
+                <p className="font-bold text-slate-900 dark:text-white">{language === "zh" ? place.name_zh : place.name_en}{displayPlaceCode(place) ? <span className="font-medium text-slate-500"> · {displayPlaceCode(place)}</span> : null}</p>
                 <p className="mt-1 text-sm text-slate-500">{place.country} · {place.kind === "airport" ? (language === "zh" ? "機場" : "Airport") : place.kind === "station" ? (language === "zh" ? "車站" : "Station") : (language === "zh" ? "自訂地點" : "Custom place")}</p>
               </div>
               <div className="flex flex-wrap items-center gap-2">

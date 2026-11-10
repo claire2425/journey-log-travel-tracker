@@ -1,6 +1,7 @@
 import { interpolateGreatCircle, type Coordinate } from "@/lib/geo";
 import { getJourneyDepartureLocalDate } from "@/lib/journey-date";
 import { countryColor } from "@/lib/journey-colors";
+import { displayPlaceCode } from "@/lib/place-display";
 import { classifyDisplayedTripLegs, type RoutePattern } from "@/lib/route-patterns";
 import type { Trip } from "@/lib/types";
 
@@ -81,7 +82,7 @@ export function createJourneyMapData(trips: Trip[]): JourneyMapData {
       }
       stops.set(place.id, {
         id: place.id,
-        code: place.code,
+        code: displayPlaceCode(place) ?? "",
         name_zh: place.name_zh,
         name_en: place.name_en,
         country,

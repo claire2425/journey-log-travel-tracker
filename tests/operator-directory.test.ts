@@ -24,6 +24,7 @@ describe("operator directory", () => {
   it("looks up an operator by code or alias and normalizes a service number", () => {
     expect(lookupOperator(" cal ", "flight")).toMatchObject({ code: "CI" });
     expect(lookupOperator("hsr", "rail")).toMatchObject({ code: "THSR" });
+    expect(lookupOperator("msc", "cruise")).toMatchObject({ code: "MSC" });
     expect(lookupOperator("CI", "rail")).toBeUndefined();
     expect(normalizeServiceNumber(" BR — 198 ")).toBe("BR198");
   });

@@ -1,7 +1,9 @@
 "use client";
 
 import { useId, useMemo, useState, type FormEvent, type KeyboardEvent } from "react";
+import { OperatorCombobox } from "@/components/operator-combobox";
 import { PlaceCombobox } from "@/components/place-combobox";
+import { displayPlaceCode } from "@/lib/place-display";
 import { buildManualTrip } from "@/lib/journey-entry";
 import { getLocalDateTimeInputValue } from "@/lib/journey-date";
 import { identifyOperator, lookupOperator, type OperatorDirectoryEntry } from "@/lib/operator-directory";
@@ -128,12 +130,14 @@ function formForTrip(trip: Trip): JourneyFormState {
 function placeLabel(place: Place, language: Language): string {
   const name = language === "zh" ? place.name_zh : place.name_en;
   const location = [place.city, place.country].filter(Boolean).join(", ");
-  return `${place.code} · ${name} (${location})`;
+  const code = displayPlaceCode(place);
+  return `${code ? `${code} · ` : ""}${name} (${location})`;
 }
 
 function stablePlaceLabel(place: Place): string {
   const location = [place.city, place.country].filter(Boolean).join(", ");
-  return `${place.code} · ${place.name_en} (${location})`;
+  const code = displayPlaceCode(place);
+  return `${code ? `${code} · ` : ""}${place.name_en} (${location})`;
 }
 
 function operatorName(operator: OperatorDirectoryEntry, language: Language): string {
@@ -238,8 +242,11 @@ export function AddJourneyForm({
     origin: "出發地",
     destination: "目的地",
     locationPlaceholder: "輸入代碼、機場、車站或城市",
-    locationHint: "輸入代碼、中文／英文名稱或城市後會立即顯示本機建議。飛行只顯示機場；火車／高鐵只顯示車站。",
+    locationHint: "輸入至少兩個字元，即時搜尋內建的全球機場或車站資料。飛行只顯示機場；火車／高鐵只顯示車站。",
     noPlaceMatches: "找不到符合的地點；可使用下方按鈕新增自訂地點。",
+    searchingPlaces: "正在搜尋全球參考資料…",
+    placeSearchFailed: "全球參考資料暫時無法使用；請稍後再試或新增自訂地點。",
+    placeDataNote: "機場資料來自 OurAirports（公共領域）；車站資料來自 GeoNames（CC BY 4.0）。此為參考資料，並非即時班表。",
     addPlace: "找不到地點？新增自訂地點",
     addingPlace: "新增自訂地點",
     nameZh: "中文名稱",
@@ -260,6 +267,8 @@ export function AddJourneyForm({
     serviceHint: "先選交通方式後輸入；若辨識到常見營運商，會在下方顯示本機識別標記。",
     company: "營運公司（選填）",
     companyCode: "公司代碼（選填）",
+    companyPlaceholder: "輸入公司名稱或代碼，例如 ANA、Eurostar、MSC",
+    noOperators: "找不到這個常見營運商；仍可自行輸入。",
     detected: "辨識到的營運商",
     useOperator: "套用到旅程",
     logoNote: "目前顯示的是本機生成的名稱／代碼標記，不是從公司網站抓取的官方圖案。日後若接入授權時刻資料，才會顯示供應商回傳的官方圖案。",
@@ -304,8 +313,11 @@ export function AddJourneyForm({
     origin: "Origin",
     destination: "Destination",
     locationPlaceholder: "Type a code, airport, station, or city",
-    locationHint: "Type a code, Chinese/English name, or city to see local suggestions immediately. Flights show airports; rail shows stations.",
+    locationHint: "Type at least two characters to search the bundled global airport or station data. Flights show airports; rail shows stations.",
     noPlaceMatches: "No matching place. Use the button below to add a custom place.",
+    searchingPlaces: "Searching global reference data…",
+    placeSearchFailed: "Global reference data is temporarily unavailable. Try again or add a custom place.",
+    placeDataNote: "Airport data: OurAirports (Public Domain). Station data: GeoNames (CC BY 4.0). This is reference data, not a live timetable.",
     addPlace: "Can’t find it? Add a custom place",
     addingPlace: "Add a custom place",
     nameZh: "Chinese name",
@@ -326,6 +338,8 @@ export function AddJourneyForm({
     serviceHint: "Enter it after choosing a mode. Recognised operators show a local visual mark below.",
     company: "Operating company (optional)",
     companyCode: "Company code (optional)",
+    companyPlaceholder: "Type a company or code, e.g. ANA, Eurostar, MSC",
+    noOperators: "This common operator was not found; you can still enter it manually.",
     detected: "Recognised operator",
     useOperator: "Use for this journey",
     logoNote: "This is a locally rendered name/code mark, not an official logo scraped from a company site. A licensed timetable provider can later return approved official artwork.",
@@ -376,7 +390,7 @@ export function AddJourneyForm({
   const destination = placeById.get(destinationId);
   const detectedOperator = useMemo(() => mode ? identifyOperator(mode, form.serviceNumber) : undefined, [form.serviceNumber, mode]);
   const selectedCodeOperator = useMemo(() => {
-    if (mode !== "flight" && mode !== "rail") return undefined;
+    if (mode !== "flight" && mode !== "rail" && mode !== "cruise") return undefined;
     return lookupOperator(form.carrierCode, mode);
   }, [form.carrierCode, mode]);
   const shownOperator = detectedOperator ?? selectedCodeOperator;
@@ -463,6 +477,9 @@ export function AddJourneyForm({
     const setQuery = endpoint === "origin" ? setOriginQuery : setDestinationQuery;
     setId(place.id);
     setQuery(placeLabel(place, language));
+    if (!allPlaces.some((existing) => existing.id === place.id)) {
+      setPendingPlaces((current) => deduplicatePlaces([...current, place]));
+    }
   }
 
   function updateDraft(field: keyof PlaceDraft, value: string) {
@@ -646,9 +663,12 @@ export function AddJourneyForm({
               return (
                 <div key={endpoint}>
                   <PlaceCombobox
+                    globalKind={mode === "flight" ? "airport" : mode === "rail" ? "station" : undefined}
                     label={label}
                     language={language}
                     noMatches={c.noPlaceMatches}
+                    searchFailed={c.placeSearchFailed}
+                    searching={c.searchingPlaces}
                     onChange={(value) => updateEndpointQuery(endpoint, value)}
                     onSelect={(place) => selectEndpointPlace(endpoint, place)}
                     placeholder={c.locationPlaceholder}
@@ -661,6 +681,7 @@ export function AddJourneyForm({
             })}
           </div>
           <p className="mt-2 text-xs leading-5 text-slate-500">{c.locationHint}</p>
+          {(mode === "flight" || mode === "rail") ? <p className="mt-1 text-xs leading-5 text-slate-500">{c.placeDataNote}</p> : null}
 
           {customFor ? <fieldset className="mt-5 rounded-2xl border border-teal-200 bg-white p-4 dark:border-teal-900 dark:bg-slate-950" onKeyDown={handleCustomPlaceKeyDown}>
             <legend className="px-1 text-sm font-bold text-slate-800 dark:text-slate-100">{c.addingPlace} · {customFor === "origin" ? c.origin : c.destination}</legend>
@@ -736,10 +757,19 @@ export function AddJourneyForm({
             </div>
             <button className="rounded-xl border border-teal-700 px-3 py-2 text-sm font-bold text-teal-800 hover:bg-teal-50 dark:text-teal-200 dark:hover:bg-teal-950" onClick={() => applyOperator(shownOperator)} type="button">{c.useOperator}</button>
           </div> : null}
-          {(mode === "flight" || mode === "rail") ? <p className="mt-2 text-xs leading-5 text-slate-500">{c.logoNote}</p> : null}
+          {(mode === "flight" || mode === "rail" || mode === "cruise") ? <p className="mt-2 text-xs leading-5 text-slate-500">{c.logoNote}</p> : null}
 
           <div className="mt-5 grid gap-4 md:grid-cols-2">
-            <InputField label={c.company} onChange={(value) => setForm((current) => ({ ...current, carrier: value }))} value={form.carrier} />
+            {mode === "flight" || mode === "rail" || mode === "cruise" ? <OperatorCombobox
+              label={c.company}
+              language={language}
+              mode={mode}
+              noMatches={c.noOperators}
+              onChange={(value) => setForm((current) => ({ ...current, carrier: value, carrierCode: "" }))}
+              onSelect={applyOperator}
+              placeholder={c.companyPlaceholder}
+              value={form.carrier}
+            /> : <InputField label={c.company} onChange={(value) => setForm((current) => ({ ...current, carrier: value }))} value={form.carrier} />}
             <InputField label={c.companyCode} onChange={(value) => setForm((current) => ({ ...current, carrierCode: value.toUpperCase() }))} value={form.carrierCode} />
             <InputField label={c.departure} onChange={(value) => setForm((current) => ({ ...current, departureLocal: value }))} type="datetime-local" value={form.departureLocal} />
             <InputField label={c.arrival} onChange={(value) => setForm((current) => ({ ...current, arrivalLocal: value }))} type="datetime-local" value={form.arrivalLocal} />

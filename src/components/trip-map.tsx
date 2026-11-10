@@ -59,9 +59,10 @@ function stopPopupText(properties: Record<string, unknown>, language: Language) 
   const name = properties[language === "zh" ? "name_zh" : "name_en"];
   const country = String(properties.country ?? "");
   const visits = Number(properties.visits ?? 0);
+  const code = String(properties.code ?? "");
   const visitLabel = language === "zh" ? `${visits} 次使用` : `${visits} journey${visits === 1 ? "" : "s"}`;
   const countryLine = country ? `${language === "zh" ? "國家／地區" : "Country / region"}: ${countryLabel(country, language)}\n` : "";
-  return `${String(name)} (${String(properties.code)})\n${countryLine}${visitLabel}`;
+  return `${String(name)}${code ? ` (${code})` : ""}\n${countryLine}${visitLabel}`;
 }
 
 export function TripMap({ language, trips }: TripMapProps) {

@@ -1,6 +1,7 @@
 "use client";
 
-import { useId, useMemo, useState, type FocusEvent, type KeyboardEvent } from "react";
+import { useEffect, useId, useMemo, useState, type FocusEvent, type KeyboardEvent } from "react";
+import { displayPlaceCode } from "@/lib/place-display";
 import { searchPlaces } from "@/lib/place-search";
 import type { Place } from "@/lib/types";
 
@@ -8,8 +9,11 @@ type PlaceComboboxProps = {
   label: string;
   language: "zh" | "en";
   noMatches: string;
+  searchFailed: string;
+  searching: string;
   placeholder: string;
   places: Place[];
+  globalKind?: "airport" | "station";
   value: string;
   onChange: (value: string) => void;
   onSelect: (place: Place) => void;
@@ -31,16 +35,19 @@ function placeKind(place: Place, language: "zh" | "en") {
 }
 
 /**
- * A local, keyboard-accessible place picker. It never contacts a geocoding or
- * timetable provider while the user types; results come only from bundled and
- * locally saved places supplied by the parent form.
+ * A keyboard-accessible place picker. It never contacts a geocoding or
+ * timetable provider while the user types; global results come from this
+ * application's bundled reference data and locally saved places.
  */
 export function PlaceCombobox({
   label,
   language,
   noMatches,
+  searchFailed,
+  searching,
   placeholder,
   places,
+  globalKind,
   value,
   onChange,
   onSelect,
@@ -48,10 +55,54 @@ export function PlaceCombobox({
   const listId = useId();
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
-  const suggestions = useMemo(() => searchPlaces(places, value), [places, value]);
+  const [globalPlaces, setGlobalPlaces] = useState<Place[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState(false);
+  const localSuggestions = useMemo(() => searchPlaces(places, value), [places, value]);
+  const suggestions = useMemo(() => {
+    const uniquePlaces = new Map<string, Place>();
+    for (const place of [...localSuggestions, ...globalPlaces]) {
+      uniquePlaces.set(place.id, place);
+    }
+    return [...uniquePlaces.values()].slice(0, 8);
+  }, [globalPlaces, localSuggestions]);
   const hasQuery = Boolean(value.trim());
   const hasSuggestions = suggestions.length > 0;
   const activeId = isOpen && hasSuggestions && activeIndex >= 0 ? `${listId}-option-${activeIndex}` : undefined;
+
+  useEffect(() => {
+    const query = value.normalize("NFKC").trim();
+    if (!globalKind || !isOpen || query.length < 2) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setIsSearching(true);
+      setSearchError(false);
+      try {
+        const params = new URLSearchParams({ kind: globalKind, q: query });
+        const response = await fetch(`/api/places/search?${params}`, { signal: controller.signal });
+        if (!response.ok) throw new Error("Global place data unavailable");
+        const body = await response.json() as { places?: Place[] };
+        if (!Array.isArray(body.places)) throw new Error("Invalid global place response");
+        if (controller.signal.aborted) return;
+        setGlobalPlaces(body.places);
+      } catch (error) {
+        if ((error as { name?: string }).name !== "AbortError") {
+          setGlobalPlaces([]);
+          setSearchError(true);
+        }
+      } finally {
+        if (!controller.signal.aborted) setIsSearching(false);
+      }
+    }, 180);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [globalKind, isOpen, value]);
 
   function selectPlace(place: Place) {
     onSelect(place);
@@ -63,6 +114,9 @@ export function PlaceCombobox({
     onChange(nextValue);
     setIsOpen(true);
     setActiveIndex(-1);
+    setGlobalPlaces([]);
+    setIsSearching(false);
+    setSearchError(false);
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -116,6 +170,7 @@ export function PlaceCombobox({
           aria-autocomplete="list"
           aria-controls={listId}
           aria-expanded={isOpen && hasQuery}
+          aria-busy={isSearching}
           autoComplete="off"
           className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 font-normal text-slate-900 outline-none ring-teal-500 transition placeholder:text-slate-400 focus:ring-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
           onChange={(event) => updateValue(event.target.value)}
@@ -129,6 +184,7 @@ export function PlaceCombobox({
       {isOpen && hasQuery ? <ul className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xl dark:border-slate-700 dark:bg-slate-900" id={listId} role="listbox">
         {hasSuggestions ? suggestions.map((place, index) => {
           const isActive = index === activeIndex;
+          const code = displayPlaceCode(place);
           return <li
             aria-selected={isActive}
             className={`cursor-pointer rounded-lg px-3 py-2.5 outline-none ${isActive ? "bg-teal-700 text-white" : "text-slate-800 hover:bg-teal-50 dark:text-slate-100 dark:hover:bg-teal-950"}`}
@@ -149,14 +205,16 @@ export function PlaceCombobox({
             tabIndex={-1}
           >
             <span className="flex items-start gap-3">
-              <span className={`mt-0.5 rounded-md px-2 py-0.5 text-xs font-black tracking-wide ${isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"}`}>{place.code}</span>
+              {code ? <span className={`mt-0.5 rounded-md px-2 py-0.5 text-xs font-black tracking-wide ${isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"}`}>{code}</span> : null}
               <span className="min-w-0">
                 <span className="block truncate font-bold">{placeName(place, language)}</span>
                 <span className={`mt-0.5 block truncate text-xs ${isActive ? "text-teal-50" : "text-slate-500 dark:text-slate-400"}`}>{placeLocation(place)} · {placeKind(place, language)}</span>
               </span>
             </span>
           </li>;
-        }) : <li aria-disabled="true" aria-selected="false" className="px-3 py-2.5 text-sm text-slate-500 dark:text-slate-400" role="option">{noMatches}</li>}
+        }) : isSearching ? <li className="px-3 py-2.5 text-sm text-slate-500 dark:text-slate-400" role="status">{searching}</li>
+          : searchError ? <li aria-disabled="true" aria-selected="false" className="px-3 py-2.5 text-sm text-amber-700 dark:text-amber-300" role="option">{searchFailed}</li>
+            : <li aria-disabled="true" aria-selected="false" className="px-3 py-2.5 text-sm text-slate-500 dark:text-slate-400" role="option">{noMatches}</li>}
       </ul> : null}
     </div>
   );

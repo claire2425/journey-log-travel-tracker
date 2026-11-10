@@ -33,14 +33,23 @@ pnpm build
 - Exchange-rate lookup is also opt-in. When requested, only the source/target
   currency pair and date are sent to the app's rate endpoint; confirmed rates
   are saved with each expense as an immutable snapshot.
+- Airport and rail-station autocomplete searches the app's bundled reference
+  data through its own route. Typed place names and codes are not sent to an
+  external geocoder or timetable provider. Airport data is from
+  [OurAirports](https://ourairports.com/data/) (Public Domain); station data is
+  from [GeoNames](https://www.geonames.org/export/) (CC BY 4.0). The local
+  index is a travel-recording aid, not a live timetable or an official
+  operational directory.
 - Clearing browser site data removes local records. Export/backup is not yet
   implemented, so keep important source records elsewhere until that feature is
   added.
 
 ## Development notes
 
-The bundled reference-place list is deliberately small. If a place is missing,
-add it in the journey form with its IANA time zone, coordinates, and continent.
-The saved-custom-places section later lets you correct an older place's
-continent; linked journey endpoints update together so filtering remains
-consistent.
+The bundled global reference index currently contains airports with common
+aviation codes and more than 70,000 rail stations. Rail stations do not have a
+single worldwide code system, so source-only station IDs are never shown as
+traveller-facing codes. If a place is missing or needs correcting, add it in
+the journey form with its IANA time zone, coordinates, and continent. The
+saved-custom-places section later lets you correct an older place's continent;
+linked journey endpoints update together so filtering remains consistent.
