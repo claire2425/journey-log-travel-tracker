@@ -22,4 +22,14 @@ describe("journey map data", () => {
       { country: "Taiwan", color: countryColor("Taiwan") },
     ]);
   });
+
+  it("exposes paired returns and unmatched one-way routes", () => {
+    const returnByRail = { ...DEMO_TRIPS[0], id: "demo-return-by-rail", mode: "rail" as const };
+    const data = createJourneyMapData([DEMO_TRIPS[1], returnByRail, DEMO_TRIPS[6]]);
+    const routeProperties = Object.fromEntries(data.routes.features.map((feature) => [feature.properties.id, feature.properties]));
+
+    expect(routeProperties[DEMO_TRIPS[1].id]?.route_pattern).toBe("paired_return");
+    expect(routeProperties[returnByRail.id]?.route_pattern).toBe("paired_return");
+    expect(routeProperties[DEMO_TRIPS[6].id]?.route_pattern).toBe("one_way");
+  });
 });

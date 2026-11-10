@@ -1,5 +1,6 @@
 import { interpolateGreatCircle, type Coordinate } from "@/lib/geo";
 import { countryColor } from "@/lib/journey-colors";
+import { classifyDisplayedTripLegs, type RoutePattern } from "@/lib/route-patterns";
 import type { Trip } from "@/lib/types";
 
 export type RouteProperties = {
@@ -11,6 +12,7 @@ export type RouteProperties = {
   origin_en: string;
   destination_en: string;
   is_demo: boolean;
+  route_pattern: RoutePattern;
 };
 
 export type StopProperties = {
@@ -42,6 +44,7 @@ export function createJourneyMapData(trips: Trip[]): JourneyMapData {
   const stops = new Map<string, Stop>();
   const countries = new Map<string, CountryLegendEntry>();
   const coordinates: Coordinate[] = [];
+  const routePatterns = classifyDisplayedTripLegs(trips);
 
   for (const trip of trips) {
     const origin: Coordinate = [trip.origin.longitude, trip.origin.latitude];
@@ -59,6 +62,7 @@ export function createJourneyMapData(trips: Trip[]): JourneyMapData {
         origin_en: trip.origin.name_en,
         destination_en: trip.destination.name_en,
         is_demo: trip.is_demo,
+        route_pattern: routePatterns.get(trip.id) ?? "one_way",
       },
       geometry: { type: "LineString", coordinates: routeCoordinates },
     });

@@ -47,7 +47,11 @@ function routePopupText(properties: Record<string, unknown>, language: Language)
   const origin = properties[language === "zh" ? "origin_zh" : "origin_en"];
   const destination = properties[language === "zh" ? "destination_zh" : "destination_en"];
   const date = properties.date;
-  return `${String(origin)} → ${String(destination)}\n${String(date)}`;
+  const hasReverseRoute = properties.route_pattern === "paired_return";
+  const routeKind = language === "zh"
+    ? (hasReverseRoute ? "往返路線（粗線）" : "單程路線（細線）")
+    : (hasReverseRoute ? "Return route (thick line)" : "One-way route (thin line)");
+  return `${routeKind}\n${String(origin)} → ${String(destination)}\n${String(date)}`;
 }
 
 function stopPopupText(properties: Record<string, unknown>, language: Language) {
@@ -126,7 +130,11 @@ export function TripMap({ language, trips }: TripMapProps) {
         type: "line",
         source: ROUTE_SOURCE,
         layout: { "line-cap": "round", "line-join": "round" },
-        paint: { "line-color": "#ffffff", "line-width": 5, "line-opacity": 0.88 },
+        paint: {
+          "line-color": "#ffffff",
+          "line-width": ["case", ["==", ["get", "route_pattern"], "paired_return"], 8, 5],
+          "line-opacity": 0.88,
+        },
       });
       map.addLayer({
         id: "journey-routes",
@@ -134,7 +142,7 @@ export function TripMap({ language, trips }: TripMapProps) {
         source: ROUTE_SOURCE,
         layout: { "line-cap": "round", "line-join": "round" },
         paint: {
-          "line-width": 3,
+          "line-width": ["case", ["==", ["get", "route_pattern"], "paired_return"], 5, 3],
           "line-opacity": 0.9,
           "line-color": [
             "match",
@@ -212,7 +220,7 @@ export function TripMap({ language, trips }: TripMapProps) {
   return (
     <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-5 py-4 dark:border-slate-700">
-        <p className="text-sm text-slate-500">{language === "zh" ? "路線與站點會隨目前的篩選條件更新。" : "Routes and stops follow the current filters."}</p>
+        <p className="text-sm text-slate-500">{language === "zh" ? "路線與站點會隨目前的篩選條件更新；可配對的對向路線會以粗線標示。" : "Routes and stops follow the current filters; paired reverse routes are shown with thicker lines."}</p>
         <button className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700 transition hover:border-teal-600 hover:text-teal-700 dark:border-slate-600 dark:text-slate-200 dark:hover:border-teal-300 dark:hover:text-teal-200" onClick={fitVisibleJourneys} type="button">
           {language === "zh" ? "框選所有足跡" : "Fit all journeys"}
         </button>
@@ -222,6 +230,11 @@ export function TripMap({ language, trips }: TripMapProps) {
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <span className="font-bold text-slate-700 dark:text-slate-200">{language === "zh" ? "路線／交通方式" : "Routes / transport"}</span>
           {(["flight", "rail", "cruise", "other"] as const).map((mode) => <span className="flex items-center gap-2" key={mode}><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: modeColor(mode) }} />{language === "zh" ? { flight: "飛行", rail: "火車／高鐵", cruise: "郵輪", other: "其他" }[mode] : { flight: "Flight", rail: "Rail / high-speed rail", cruise: "Cruise", other: "Other" }[mode]}</span>)}
+        </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <span className="font-bold text-slate-700 dark:text-slate-200">{language === "zh" ? "線條／行程類型" : "Line weight / journey type"}</span>
+          <span className="flex items-center gap-2"><span className="w-6 rounded-full bg-slate-600 dark:bg-slate-300" style={{ height: 5 }} />{language === "zh" ? "往返（粗線）" : "Return (thick)"}</span>
+          <span className="flex items-center gap-2"><span className="w-6 rounded-full bg-slate-600 dark:bg-slate-300" style={{ height: 2 }} />{language === "zh" ? "單程（細線）" : "One-way (thin)"}</span>
         </div>
         {mapData.countryLegend.length > 0 ? <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <span className="font-bold text-slate-700 dark:text-slate-200">{language === "zh" ? "站點／國家或地區" : "Stops / country or region"}</span>
