@@ -1,15 +1,17 @@
 "use client";
 
-import { useId, useMemo, useState, type FormEvent } from "react";
+import { useId, useMemo, useState, type FormEvent, type KeyboardEvent } from "react";
 import { buildManualTrip } from "@/lib/journey-entry";
 import { identifyOperator, lookupOperator, type OperatorDirectoryEntry } from "@/lib/operator-directory";
 import { continents, PlaceSchema, tripPurposes, type Continent, type Place, type Trip, type TripMode, type TripPurpose } from "@/lib/types";
 
 type Language = "zh" | "en";
 type Endpoint = "origin" | "destination";
+type PurposeChoice = TripPurpose | "unclassified" | "";
+type FormMessageKind = "error" | "success" | null;
 
 type JourneyFormState = {
-  purpose: TripPurpose;
+  purpose: PurposeChoice;
   serviceNumber: string;
   carrier: string;
   carrierCode: string;
@@ -47,12 +49,12 @@ const modeLabels: Record<Language, Record<TripMode, string>> = {
 };
 
 const modeOrder: TripMode[] = ["flight", "rail", "cruise", "other"];
-const purposeOrder = tripPurposes;
+const purposeOrder = [...tripPurposes, "unclassified"] as const;
 const continentOrder = continents;
 
-const purposeLabels: Record<Language, Record<TripPurpose, string>> = {
-  zh: { leisure: "旅遊／休閒", business: "出差", personal: "個人事務", other: "其他" },
-  en: { leisure: "Leisure", business: "Business", personal: "Personal", other: "Other" },
+const purposeLabels: Record<Language, Record<Exclude<PurposeChoice, "">, string>> = {
+  zh: { leisure: "旅遊／休閒", business: "出差", personal: "個人事務", other: "其他", unclassified: "未設定" },
+  en: { leisure: "Leisure", business: "Business", personal: "Personal", other: "Other", unclassified: "Not specified" },
 };
 
 const continentLabels: Record<Language, Record<Continent, string>> = {
@@ -77,7 +79,7 @@ const continentLabels: Record<Language, Record<Continent, string>> = {
 };
 
 const emptyForm = (): JourneyFormState => ({
-  purpose: "leisure",
+  purpose: "",
   serviceNumber: "",
   carrier: "",
   carrierCode: "",
@@ -135,6 +137,42 @@ function deduplicatePlaces(places: Place[]): Place[] {
   return [...new Map(places.map((place) => [place.id, place])).values()];
 }
 
+function finiteCoordinate(value: string): number | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const coordinate = Number(trimmed);
+  return Number.isFinite(coordinate) ? coordinate : undefined;
+}
+
+function hasJourneyDetails(form: JourneyFormState): boolean {
+  return Boolean(
+    form.purpose
+    || form.serviceNumber.trim()
+    || form.carrier.trim()
+    || form.carrierCode.trim()
+    || form.departureLocal
+    || form.arrivalLocal
+    || form.seatClass.trim()
+    || form.seat.trim()
+    || form.vehicleType.trim()
+    || form.notes.trim()
+    || form.tags.trim(),
+  );
+}
+
+function hasPlaceDetails(placeDraft: PlaceDraft): boolean {
+  return Boolean(
+    placeDraft.nameZh.trim()
+    || placeDraft.nameEn.trim()
+    || placeDraft.code.trim()
+    || placeDraft.country.trim()
+    || placeDraft.continent
+    || placeDraft.timeZone.trim() !== "Asia/Taipei"
+    || placeDraft.latitude.trim()
+    || placeDraft.longitude.trim(),
+  );
+}
+
 export function AddJourneyForm({ language, places, existingTrips, isSaving, onSave }: AddJourneyFormProps) {
   const [mode, setMode] = useState<TripMode | null>(null);
   const [form, setForm] = useState<JourneyFormState>(emptyForm);
@@ -146,10 +184,16 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
   const [placeDraft, setPlaceDraft] = useState<PlaceDraft>(emptyPlaceDraft);
   const [pendingPlaces, setPendingPlaces] = useState<Place[]>([]);
   const [message, setMessage] = useState("");
+  const [messageKind, setMessageKind] = useState<FormMessageKind>(null);
+  const [customPlaceError, setCustomPlaceError] = useState("");
+  const [purposeError, setPurposeError] = useState(false);
   const originListId = useId();
   const destinationListId = useId();
+  const customPlaceErrorId = useId();
+  const purposeErrorId = useId();
 
   const c = language === "zh" ? {
+    eyebrow: "旅程輸入",
     title: "新增旅程",
     description: "先選交通方式，再輸入路線與班號／車次。儲存後，資料只會留在這個瀏覽器。",
     stepOne: "1. 選擇交通方式",
@@ -168,6 +212,8 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
     continentPlaceholder: "選擇洲別",
     timeZone: "IANA 時區",
     coordinates: "座標（經度、緯度）",
+    longitude: "經度",
+    latitude: "緯度",
     savePlace: "使用這個地點",
     cancel: "取消",
     service: "航班／車次",
@@ -179,7 +225,7 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
     useOperator: "套用到旅程",
     logoNote: "目前顯示的是本機生成的名稱／代碼標記，不是從公司網站抓取的官方圖案。日後若接入授權時刻資料，才會顯示供應商回傳的官方圖案。",
     purpose: "旅程目的",
-    purposeHint: "選擇這趟旅程的主要目的，方便之後篩選與統計。",
+    purposeHint: "請選擇這趟旅程的主要目的，方便之後篩選與統計。",
     departure: "出發當地時間",
     arrival: "抵達當地時間",
     class: "艙等／座位等級（選填）",
@@ -196,11 +242,16 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
     liveLookupBody: "目前不會假裝顯示即時航班或車次。全球航班、鐵路和高鐵需要各地資料供應商與授權；新增旅程不會因此被阻擋。",
     chooseMode: "請先選擇交通方式。",
     choosePlaces: "請從建議清單選擇出發地與目的地，或新增自訂地點。",
+    choosePurpose: "請選擇旅程目的，或明確選擇「未設定」。",
     samePlace: "出發地與目的地不能相同。",
     invalidPlace: "請完整填寫自訂地點，並使用有效的 IANA 時區和座標。",
+    invalidCoordinates: "請輸入有效的經度與緯度；兩者都不能留白。",
     invalidJourney: "請確認出發與抵達時間；抵達時間必須晚於出發時間。",
+    saveFailed: "無法儲存旅程。請確認這個瀏覽器允許本機儲存後再試一次。",
+    discardModeChange: "變更交通方式會清除尚未儲存的旅程資料。要繼續嗎？",
     saved: "已儲存旅程，也會立即出現在地圖和統計中。",
   } : {
+    eyebrow: "Journey entry",
     title: "Add a journey",
     description: "Choose a travel mode first, then record the route and service. It stays in this browser.",
     stepOne: "1. Choose a travel mode",
@@ -219,6 +270,8 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
     continentPlaceholder: "Choose a continent",
     timeZone: "IANA time zone",
     coordinates: "Coordinates (longitude, latitude)",
+    longitude: "Longitude",
+    latitude: "Latitude",
     savePlace: "Use this place",
     cancel: "Cancel",
     service: "Flight / train number",
@@ -247,9 +300,13 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
     liveLookupBody: "The app will not pretend a result is live. Worldwide flight, rail, and high-speed rail results require licensed providers; this never prevents manual journey entry.",
     chooseMode: "Choose a travel mode first.",
     choosePlaces: "Choose both endpoints from the suggestions, or add a custom place.",
+    choosePurpose: "Choose a journey purpose, or explicitly choose Not specified.",
     samePlace: "Origin and destination cannot be the same.",
     invalidPlace: "Complete the custom place with a valid IANA time zone and coordinates.",
+    invalidCoordinates: "Enter valid longitude and latitude values; neither can be blank.",
     invalidJourney: "Check the departure and arrival times; arrival must be after departure.",
+    saveFailed: "The journey could not be saved. Check that this browser allows local storage and try again.",
+    discardModeChange: "Changing travel mode will clear this unsaved journey. Continue?",
     saved: "Journey saved. It is now included in your map and statistics.",
   };
 
@@ -277,8 +334,17 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
     )).slice(0, 5);
   }, [destination, existingTrips, mode, origin]);
 
-  function selectMode(nextMode: TripMode) {
-    setMode(nextMode);
+  function clearMessage() {
+    setMessage("");
+    setMessageKind(null);
+  }
+
+  function showMessage(nextMessage: string, kind: Exclude<FormMessageKind, null>) {
+    setMessage(nextMessage);
+    setMessageKind(kind);
+  }
+
+  function resetEntry() {
     setForm(emptyForm());
     setOriginId("");
     setDestinationId("");
@@ -286,7 +352,30 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
     setDestinationQuery("");
     setPendingPlaces([]);
     setCustomFor(null);
-    setMessage("");
+    setPlaceDraft(emptyPlaceDraft());
+    setCustomPlaceError("");
+    setPurposeError(false);
+    clearMessage();
+  }
+
+  function hasUnsavedEntry(): boolean {
+    return Boolean(
+      originId
+      || destinationId
+      || originQuery.trim()
+      || destinationQuery.trim()
+      || pendingPlaces.length
+      || hasJourneyDetails(form)
+      || hasPlaceDetails(placeDraft),
+    );
+  }
+
+  function selectMode(nextMode: TripMode) {
+    if (nextMode === mode) return;
+    if (mode && hasUnsavedEntry() && !window.confirm(c.discardModeChange)) return;
+
+    setMode(nextMode);
+    resetEntry();
   }
 
   function findPlace(value: string): Place | undefined {
@@ -309,17 +398,25 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
 
   function updateDraft(field: keyof PlaceDraft, value: string) {
     setPlaceDraft((current) => ({ ...current, [field]: value }));
+    setCustomPlaceError("");
   }
 
   function beginCustomPlace(endpoint: Endpoint) {
     setCustomFor(endpoint);
     setPlaceDraft(emptyPlaceDraft());
-    setMessage("");
+    setCustomPlaceError("");
+    clearMessage();
   }
 
   function addCustomPlace() {
     if (!mode || !customFor) return;
-    if (!placeDraft.continent) return setMessage(c.invalidPlace);
+    if (!placeDraft.continent) return setCustomPlaceError(c.invalidPlace);
+    const latitude = finiteCoordinate(placeDraft.latitude);
+    const longitude = finiteCoordinate(placeDraft.longitude);
+    if (latitude === undefined || longitude === undefined) {
+      return setCustomPlaceError(c.invalidCoordinates);
+    }
+
     const kind = modePlaceKind(mode) ?? "custom";
     const parsed = PlaceSchema.safeParse({
       id: `custom-${crypto.randomUUID()}`,
@@ -327,17 +424,17 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
       name_en: placeDraft.nameEn.trim(),
       code: placeDraft.code.trim().toUpperCase(),
       kind,
-      latitude: Number(placeDraft.latitude),
-      longitude: Number(placeDraft.longitude),
+      latitude,
+      longitude,
       country: placeDraft.country.trim(),
       continent: placeDraft.continent,
       time_zone: placeDraft.timeZone.trim(),
     });
-    if (!parsed.success) return setMessage(c.invalidPlace);
+    if (!parsed.success) return setCustomPlaceError(c.invalidPlace);
     try {
       new Intl.DateTimeFormat("en-CA", { timeZone: parsed.data.time_zone }).format();
     } catch {
-      return setMessage(c.invalidPlace);
+      return setCustomPlaceError(c.invalidPlace);
     }
 
     const place = parsed.data;
@@ -351,7 +448,17 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
     }
     setCustomFor(null);
     setPlaceDraft(emptyPlaceDraft());
-    setMessage("");
+    setCustomPlaceError("");
+    clearMessage();
+  }
+
+  function handleCustomPlaceKeyDown(event: KeyboardEvent<HTMLFieldSetElement>) {
+    if (event.key !== "Enter") return;
+    const target = event.target as HTMLElement;
+    if (target.tagName !== "INPUT") return;
+
+    event.preventDefault();
+    addCustomPlace();
   }
 
   function applyOperator(operator: OperatorDirectoryEntry) {
@@ -368,23 +475,31 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
       carrier: trip.carrier,
       carrierCode: trip.carrier_code ?? "",
       serviceNumber: trip.service_number,
-      purpose: trip.purpose ?? current.purpose,
+      purpose: trip.purpose ?? "unclassified",
       vehicleType: trip.vehicle_type ?? "",
       seatClass: trip.seat_class,
     }));
+    setPurposeError(false);
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!mode) return setMessage(c.chooseMode);
-    if (!origin || !destination) return setMessage(c.choosePlaces);
-    if (origin.id === destination.id) return setMessage(c.samePlace);
+    if (!mode) return showMessage(c.chooseMode, "error");
+    if (!origin || !destination) return showMessage(c.choosePlaces, "error");
+    if (origin.id === destination.id) return showMessage(c.samePlace, "error");
+    const purpose = form.purpose;
+    if (!purpose) {
+      setPurposeError(true);
+      clearMessage();
+      return;
+    }
 
+    let trip: Trip;
     try {
-      const trip = buildManualTrip({
+      trip = buildManualTrip({
         id: crypto.randomUUID(),
         mode,
-        purpose: form.purpose,
+        purpose: purpose === "unclassified" ? undefined : purpose,
         origin,
         destination,
         departureLocal: form.departureLocal,
@@ -398,8 +513,13 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
         notes: form.notes,
         tags: form.tags.split(","),
       });
+    } catch {
+      return showMessage(c.invalidJourney, "error");
+    }
+
+    try {
       await onSave(trip, pendingPlaces);
-      setMessage(c.saved);
+      showMessage(c.saved, "success");
       setMode(null);
       setForm(emptyForm());
       setOriginId("");
@@ -408,15 +528,18 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
       setDestinationQuery("");
       setPendingPlaces([]);
       setCustomFor(null);
+      setPlaceDraft(emptyPlaceDraft());
+      setCustomPlaceError("");
+      setPurposeError(false);
     } catch {
-      setMessage(c.invalidJourney);
+      showMessage(c.saveFailed, "error");
     }
   }
 
   return (
     <section className="mt-8 rounded-3xl border border-teal-200 bg-teal-50/70 p-5 shadow-sm dark:border-teal-900 dark:bg-teal-950/30 sm:p-6" aria-labelledby="add-journey-title">
       <div className="max-w-3xl">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700 dark:text-teal-300">Journey entry</p>
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700 dark:text-teal-300">{c.eyebrow}</p>
         <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 dark:text-white" id="add-journey-title">{c.title}</h2>
         <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{c.description}</p>
       </div>
@@ -426,7 +549,9 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
         <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label={c.stepOne}>
           {modeOrder.map((item) => (
             <button
-              className={`rounded-xl border px-4 py-2.5 text-sm font-bold transition ${mode === item ? "border-teal-700 bg-teal-700 text-white" : "border-slate-300 bg-white text-slate-700 hover:border-teal-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"}`}
+              aria-pressed={mode === item}
+              className={`rounded-xl border px-4 py-2.5 text-sm font-bold transition disabled:cursor-wait disabled:opacity-60 ${mode === item ? "border-teal-700 bg-teal-700 text-white" : "border-slate-300 bg-white text-slate-700 hover:border-teal-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"}`}
+              disabled={isSaving}
               key={item}
               onClick={() => selectMode(item)}
               type="button"
@@ -468,14 +593,16 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
           </div>
           <p className="mt-2 text-xs leading-5 text-slate-500">{c.locationHint}</p>
 
-          {customFor ? <fieldset className="mt-5 rounded-2xl border border-teal-200 bg-white p-4 dark:border-teal-900 dark:bg-slate-950">
+          {customFor ? <fieldset className="mt-5 rounded-2xl border border-teal-200 bg-white p-4 dark:border-teal-900 dark:bg-slate-950" onKeyDown={handleCustomPlaceKeyDown}>
             <legend className="px-1 text-sm font-bold text-slate-800 dark:text-slate-100">{c.addingPlace} · {customFor === "origin" ? c.origin : c.destination}</legend>
             <div className="mt-2 grid gap-3 sm:grid-cols-2">
-              <InputField label={c.nameZh} onChange={(value) => updateDraft("nameZh", value)} value={placeDraft.nameZh} />
-              <InputField label={c.nameEn} onChange={(value) => updateDraft("nameEn", value)} value={placeDraft.nameEn} />
-              <InputField label={c.placeCode} onChange={(value) => updateDraft("code", value)} value={placeDraft.code} />
-              <InputField label={c.country} onChange={(value) => updateDraft("country", value)} value={placeDraft.country} />
+              <InputField ariaDescribedBy={customPlaceError ? customPlaceErrorId : undefined} invalid={Boolean(customPlaceError)} label={c.nameZh} onChange={(value) => updateDraft("nameZh", value)} required value={placeDraft.nameZh} />
+              <InputField ariaDescribedBy={customPlaceError ? customPlaceErrorId : undefined} invalid={Boolean(customPlaceError)} label={c.nameEn} onChange={(value) => updateDraft("nameEn", value)} required value={placeDraft.nameEn} />
+              <InputField ariaDescribedBy={customPlaceError ? customPlaceErrorId : undefined} invalid={Boolean(customPlaceError)} label={c.placeCode} onChange={(value) => updateDraft("code", value)} required value={placeDraft.code} />
+              <InputField ariaDescribedBy={customPlaceError ? customPlaceErrorId : undefined} invalid={Boolean(customPlaceError)} label={c.country} onChange={(value) => updateDraft("country", value)} required value={placeDraft.country} />
               <SelectField
+                ariaDescribedBy={customPlaceError ? customPlaceErrorId : undefined}
+                invalid={Boolean(customPlaceError)}
                 label={c.continent}
                 onChange={(value) => updateDraft("continent", value as Continent | "")}
                 options={continentOrder.map((continent) => ({ label: continentLabels[language][continent], value: continent }))}
@@ -483,29 +610,34 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
                 required
                 value={placeDraft.continent}
               />
-              <InputField label={c.timeZone} onChange={(value) => updateDraft("timeZone", value)} placeholder="Asia/Taipei" value={placeDraft.timeZone} />
+              <InputField ariaDescribedBy={customPlaceError ? customPlaceErrorId : undefined} invalid={Boolean(customPlaceError)} label={c.timeZone} onChange={(value) => updateDraft("timeZone", value)} placeholder="Asia/Taipei" required value={placeDraft.timeZone} />
               <div className="grid grid-cols-2 gap-2">
-                <InputField label={`${c.coordinates} — longitude`} onChange={(value) => updateDraft("longitude", value)} placeholder="121.5654" type="number" value={placeDraft.longitude} />
-                <InputField label={`${c.coordinates} — latitude`} onChange={(value) => updateDraft("latitude", value)} placeholder="25.0330" type="number" value={placeDraft.latitude} />
+                <InputField ariaDescribedBy={customPlaceError ? customPlaceErrorId : undefined} invalid={Boolean(customPlaceError)} label={`${c.coordinates} — ${c.longitude}`} onChange={(value) => updateDraft("longitude", value)} placeholder="121.5654" required type="number" value={placeDraft.longitude} />
+                <InputField ariaDescribedBy={customPlaceError ? customPlaceErrorId : undefined} invalid={Boolean(customPlaceError)} label={`${c.coordinates} — ${c.latitude}`} onChange={(value) => updateDraft("latitude", value)} placeholder="25.0330" required type="number" value={placeDraft.latitude} />
               </div>
             </div>
+            {customPlaceError ? <p className="mt-3 text-sm font-medium text-red-700 dark:text-red-300" id={customPlaceErrorId} role="alert">{customPlaceError}</p> : null}
             <div className="mt-4 flex flex-wrap gap-2">
               <button className="rounded-xl bg-teal-700 px-3 py-2 text-sm font-bold text-white hover:bg-teal-800" onClick={addCustomPlace} type="button">{c.savePlace}</button>
-              <button className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700 hover:border-slate-400 dark:border-slate-700 dark:text-slate-200" onClick={() => setCustomFor(null)} type="button">{c.cancel}</button>
+              <button className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700 hover:border-slate-400 dark:border-slate-700 dark:text-slate-200" onClick={() => { setCustomFor(null); setCustomPlaceError(""); }} type="button">{c.cancel}</button>
             </div>
           </fieldset> : null}
 
-          <fieldset className="mt-6">
+          <fieldset aria-describedby={purposeError ? purposeErrorId : undefined} className="mt-6">
             <legend className="text-sm font-semibold text-slate-700 dark:text-slate-200">{c.purpose}</legend>
             <p className="mt-1 text-xs leading-5 text-slate-500">{c.purposeHint}</p>
             <div className="mt-3 flex flex-wrap gap-2">
               {purposeOrder.map((purpose) => (
                 <label className="cursor-pointer" key={purpose}>
                   <input
+                    aria-describedby={purposeError ? purposeErrorId : undefined}
                     checked={form.purpose === purpose}
                     className="peer sr-only"
                     name="journey-purpose"
-                    onChange={() => setForm((current) => ({ ...current, purpose }))}
+                    onChange={() => {
+                      setForm((current) => ({ ...current, purpose }));
+                      setPurposeError(false);
+                    }}
                     type="radio"
                     value={purpose}
                   />
@@ -515,6 +647,7 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
                 </label>
               ))}
             </div>
+            {purposeError ? <p className="mt-2 text-sm font-medium text-red-700 dark:text-red-300" id={purposeErrorId} role="alert">{c.choosePurpose}</p> : null}
           </fieldset>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -567,7 +700,7 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
 
           <div className="mt-5 flex flex-wrap items-center gap-3">
             <button className="rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-teal-800 disabled:cursor-wait disabled:opacity-60" disabled={isSaving} type="submit">{isSaving ? c.saving : c.saveJourney}</button>
-            <p aria-live="polite" className="text-sm font-medium text-teal-800 dark:text-teal-200">{message}</p>
+            <p aria-live={messageKind === "error" ? "assertive" : "polite"} className={`text-sm font-medium ${messageKind === "error" ? "text-red-700 dark:text-red-300" : "text-teal-800 dark:text-teal-200"}`} role={messageKind === "error" ? "alert" : undefined}>{message}</p>
           </div>
         </form>
       ) : <p className="mt-5 text-sm text-slate-500">{c.chooseMode}</p>}
@@ -575,22 +708,27 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
   );
 }
 
-function InputField({ label, onChange, placeholder, type = "text", value }: {
+function InputField({ ariaDescribedBy, invalid = false, label, onChange, placeholder, required = false, type = "text", value }: {
+  ariaDescribedBy?: string;
+  invalid?: boolean;
   label: string;
   onChange: (value: string) => void;
   placeholder?: string;
+  required?: boolean;
   type?: "text" | "number" | "datetime-local";
   value: string;
 }) {
   return (
     <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
       {label}
-      <input className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 font-normal text-slate-900 outline-none ring-teal-500 transition placeholder:text-slate-400 focus:ring-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white" onChange={(event) => onChange(event.target.value)} placeholder={placeholder} step={type === "number" ? "any" : undefined} type={type} value={value} />
+      <input aria-describedby={ariaDescribedBy} aria-invalid={invalid || undefined} className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 font-normal text-slate-900 outline-none ring-teal-500 transition placeholder:text-slate-400 focus:ring-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white" onChange={(event) => onChange(event.target.value)} placeholder={placeholder} required={required} step={type === "number" ? "any" : undefined} type={type} value={value} />
     </label>
   );
 }
 
-function SelectField({ label, onChange, options, placeholder, required = false, value }: {
+function SelectField({ ariaDescribedBy, invalid = false, label, onChange, options, placeholder, required = false, value }: {
+  ariaDescribedBy?: string;
+  invalid?: boolean;
   label: string;
   onChange: (value: string) => void;
   options: Array<{ label: string; value: string }>;
@@ -602,6 +740,8 @@ function SelectField({ label, onChange, options, placeholder, required = false, 
     <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
       {label}
       <select
+        aria-describedby={ariaDescribedBy}
+        aria-invalid={invalid || undefined}
         className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 font-normal text-slate-900 outline-none ring-teal-500 transition focus:ring-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
         onChange={(event) => onChange(event.target.value)}
         required={required}
