@@ -33,6 +33,7 @@ export const REFERENCE_PLACES: Place[] = Object.values(places).map((place) => ({
 function demoTrip(input: Omit<Trip, "is_demo" | "created_at" | "updated_at">): Trip {
   return {
     ...input,
+    purpose: input.purpose ?? (input.tags.includes("work") ? "business" : "leisure"),
     is_demo: true,
     created_at: "2026-11-10T00:00:00+00:00",
     updated_at: "2026-11-10T00:00:00+00:00",

@@ -8,6 +8,9 @@ import { TripSchema, type Place, type Trip } from "@/lib/types";
 
 const tpe: Place = { id: "tpe", name_zh: "桃園", name_en: "Taipei", code: "TPE", kind: "airport", latitude: 25.0797, longitude: 121.2342, country: "Taiwan", time_zone: "Asia/Taipei" };
 const lhr: Place = { id: "lhr", name_zh: "倫敦希斯洛", name_en: "London Heathrow", code: "LHR", kind: "airport", latitude: 51.47, longitude: -0.4543, country: "United Kingdom", time_zone: "Europe/London" };
+const nrt: Place = { id: "nrt", name_zh: "成田", name_en: "Narita", code: "NRT", kind: "airport", latitude: 35.772, longitude: 140.3929, country: "Japan", time_zone: "Asia/Tokyo" };
+const cdg: Place = { id: "cdg", name_zh: "巴黎戴高樂", name_en: "Paris Charles de Gaulle", code: "CDG", kind: "airport", latitude: 49.0097, longitude: 2.5479, country: "France", time_zone: "Europe/Paris" };
+const syd: Place = { id: "syd", name_zh: "雪梨", name_en: "Sydney", code: "SYD", kind: "airport", latitude: -33.9399, longitude: 151.1753, country: "Australia", continent: "oceania", time_zone: "Australia/Sydney" };
 
 function trip(overrides: Partial<Trip> = {}): Trip {
   return {
@@ -45,6 +48,48 @@ describe("trip repository", () => {
     expect(await listTrips({ mode: "cruise" }, database)).toHaveLength(1);
     expect(await listTrips({ year: 2026 }, database)).toHaveLength(1);
     expect((await listTrips({ search: "london" }, database))[0]?.id).toBe("trip-1");
+  });
+
+  it("combines multi-select journey filters while preserving legacy mode and year filters", async () => {
+    await addTrip(trip({ purpose: "business" }), database);
+    await addTrip(trip({
+      id: "trip-2", mode: "rail", origin: nrt, destination: nrt,
+      departure: "2025-06-01T09:00:00+09:00", arrival: "2025-06-01T10:00:00+09:00",
+      service_number: "SR 21", distance_km: 445, duration_min: 60, purpose: "leisure",
+    }), database);
+    await addTrip(trip({
+      id: "trip-3", mode: "cruise", origin: lhr, destination: cdg,
+      departure: "2024-06-01T09:00:00+01:00", arrival: "2024-06-01T12:00:00+02:00",
+      service_number: "CR 1", distance_km: 800, duration_min: 120, purpose: "other",
+    }), database);
+    await addTrip(trip({
+      id: "trip-4", mode: "other", origin: syd, destination: syd,
+      departure: "2023-06-01T09:00:00+10:00", arrival: "2023-06-01T10:00:00+10:00",
+      service_number: "", distance_km: 3500, duration_min: 60,
+    }), database);
+
+    expect((await listTrips({ modes: ["rail", "cruise"] }, database)).map((item) => item.id)).toEqual(["trip-2", "trip-3"]);
+    expect((await listTrips({ mode: "flight", modes: ["rail"] }, database)).map((item) => item.id)).toEqual(["trip-1", "trip-2"]);
+    expect((await listTrips({ years: [2025, 2023] }, database)).map((item) => item.id)).toEqual(["trip-2", "trip-4"]);
+    expect((await listTrips({ year: 2026, years: [2024] }, database)).map((item) => item.id)).toEqual(["trip-1", "trip-3"]);
+
+    // Taiwan and Japan have no stored continent, so this verifies the limited
+    // country fallback. Europe matches either endpoint of trip-1 and both of trip-3.
+    expect((await listTrips({ continents: ["asia"] }, database)).map((item) => item.id)).toEqual(["trip-1", "trip-2"]);
+    expect((await listTrips({ continents: ["europe"] }, database)).map((item) => item.id)).toEqual(["trip-1", "trip-3"]);
+    expect((await listTrips({ continents: ["oceania"] }, database)).map((item) => item.id)).toEqual(["trip-4"]);
+
+    expect((await listTrips({ distance_bands: ["short"] }, database)).map((item) => item.id)).toEqual(["trip-2"]);
+    expect((await listTrips({ distance_bands: ["medium"] }, database)).map((item) => item.id)).toEqual(["trip-3"]);
+    expect((await listTrips({ distance_bands: ["long"] }, database)).map((item) => item.id)).toEqual(["trip-1", "trip-4"]);
+    expect((await listTrips({ purposes: ["business", "unclassified"] }, database)).map((item) => item.id)).toEqual(["trip-1", "trip-4"]);
+
+    expect((await listTrips({
+      modes: ["flight", "rail"],
+      continents: ["asia"],
+      distance_bands: ["long"],
+      purposes: ["business"],
+    }, database)).map((item) => item.id)).toEqual(["trip-1"]);
   });
 
   it("normalizes an optional carrier code and accepts only http(s) logo URLs", async () => {
@@ -86,6 +131,9 @@ describe("trip repository", () => {
   it("accepts cruises and normalizes legacy high-speed rail input at the validation boundary", () => {
     expect(TripSchema.parse({ ...trip(), mode: "cruise" }).mode).toBe("cruise");
     expect(TripSchema.parse({ ...trip(), mode: "hsr" }).mode).toBe("rail");
+    expect(TripSchema.parse(trip()).purpose).toBeUndefined();
+    expect(TripSchema.parse({ ...trip(), purpose: " Business " }).purpose).toBe("business");
+    expect(TripSchema.parse({ ...trip(), origin: { ...tpe, continent: "asia" } }).origin.continent).toBe("asia");
   });
 
   it("removes only demo trips", async () => {

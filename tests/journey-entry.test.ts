@@ -42,6 +42,7 @@ describe("local journey entry", () => {
       carrier: "Example Airways",
       carrierCode: "EJ",
       serviceNumber: "EJ 228",
+      purpose: "leisure",
       now: "2026-11-10T00:00:00.000Z",
     });
 
@@ -50,6 +51,7 @@ describe("local journey entry", () => {
     expect(trip.duration_min).toBe(180);
     expect(trip.distance_km).toBeGreaterThan(1_700);
     expect(trip.distance_is_estimate).toBe(true);
+    expect(trip.purpose).toBe("leisure");
   });
 
   it("rejects an arrival before its departure", () => {

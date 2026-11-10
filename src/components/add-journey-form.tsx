@@ -3,12 +3,13 @@
 import { useId, useMemo, useState, type FormEvent } from "react";
 import { buildManualTrip } from "@/lib/journey-entry";
 import { identifyOperator, lookupOperator, type OperatorDirectoryEntry } from "@/lib/operator-directory";
-import { PlaceSchema, type Place, type Trip, type TripMode } from "@/lib/types";
+import { continents, PlaceSchema, tripPurposes, type Continent, type Place, type Trip, type TripMode, type TripPurpose } from "@/lib/types";
 
 type Language = "zh" | "en";
 type Endpoint = "origin" | "destination";
 
 type JourneyFormState = {
+  purpose: TripPurpose;
   serviceNumber: string;
   carrier: string;
   carrierCode: string;
@@ -26,6 +27,7 @@ type PlaceDraft = {
   nameEn: string;
   code: string;
   country: string;
+  continent: Continent | "";
   timeZone: string;
   latitude: string;
   longitude: string;
@@ -45,8 +47,37 @@ const modeLabels: Record<Language, Record<TripMode, string>> = {
 };
 
 const modeOrder: TripMode[] = ["flight", "rail", "cruise", "other"];
+const purposeOrder = tripPurposes;
+const continentOrder = continents;
+
+const purposeLabels: Record<Language, Record<TripPurpose, string>> = {
+  zh: { leisure: "旅遊／休閒", business: "出差", personal: "個人事務", other: "其他" },
+  en: { leisure: "Leisure", business: "Business", personal: "Personal", other: "Other" },
+};
+
+const continentLabels: Record<Language, Record<Continent, string>> = {
+  zh: {
+    africa: "非洲",
+    antarctica: "南極洲",
+    asia: "亞洲",
+    europe: "歐洲",
+    north_america: "北美洲",
+    oceania: "大洋洲",
+    south_america: "南美洲",
+  },
+  en: {
+    africa: "Africa",
+    antarctica: "Antarctica",
+    asia: "Asia",
+    europe: "Europe",
+    north_america: "North America",
+    oceania: "Oceania",
+    south_america: "South America",
+  },
+};
 
 const emptyForm = (): JourneyFormState => ({
+  purpose: "leisure",
   serviceNumber: "",
   carrier: "",
   carrierCode: "",
@@ -64,6 +95,7 @@ const emptyPlaceDraft = (): PlaceDraft => ({
   nameEn: "",
   code: "",
   country: "",
+  continent: "",
   timeZone: "Asia/Taipei",
   latitude: "",
   longitude: "",
@@ -132,6 +164,8 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
     nameEn: "英文名稱",
     placeCode: "地點代碼／簡稱",
     country: "國家／地區",
+    continent: "洲別",
+    continentPlaceholder: "選擇洲別",
     timeZone: "IANA 時區",
     coordinates: "座標（經度、緯度）",
     savePlace: "使用這個地點",
@@ -144,6 +178,8 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
     detected: "辨識到的營運商",
     useOperator: "套用到旅程",
     logoNote: "目前顯示的是本機生成的名稱／代碼標記，不是從公司網站抓取的官方圖案。日後若接入授權時刻資料，才會顯示供應商回傳的官方圖案。",
+    purpose: "旅程目的",
+    purposeHint: "選擇這趟旅程的主要目的，方便之後篩選與統計。",
     departure: "出發當地時間",
     arrival: "抵達當地時間",
     class: "艙等／座位等級（選填）",
@@ -179,6 +215,8 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
     nameEn: "English name",
     placeCode: "Place code / short name",
     country: "Country / region",
+    continent: "Continent",
+    continentPlaceholder: "Choose a continent",
     timeZone: "IANA time zone",
     coordinates: "Coordinates (longitude, latitude)",
     savePlace: "Use this place",
@@ -191,6 +229,8 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
     detected: "Recognised operator",
     useOperator: "Use for this journey",
     logoNote: "This is a locally rendered name/code mark, not an official logo scraped from a company site. A licensed timetable provider can later return approved official artwork.",
+    purpose: "Journey purpose",
+    purposeHint: "Choose the main purpose of this journey for future filtering and statistics.",
     departure: "Departure local time",
     arrival: "Arrival local time",
     class: "Cabin / class (optional)",
@@ -279,6 +319,7 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
 
   function addCustomPlace() {
     if (!mode || !customFor) return;
+    if (!placeDraft.continent) return setMessage(c.invalidPlace);
     const kind = modePlaceKind(mode) ?? "custom";
     const parsed = PlaceSchema.safeParse({
       id: `custom-${crypto.randomUUID()}`,
@@ -289,6 +330,7 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
       latitude: Number(placeDraft.latitude),
       longitude: Number(placeDraft.longitude),
       country: placeDraft.country.trim(),
+      continent: placeDraft.continent,
       time_zone: placeDraft.timeZone.trim(),
     });
     if (!parsed.success) return setMessage(c.invalidPlace);
@@ -326,6 +368,7 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
       carrier: trip.carrier,
       carrierCode: trip.carrier_code ?? "",
       serviceNumber: trip.service_number,
+      purpose: trip.purpose ?? current.purpose,
       vehicleType: trip.vehicle_type ?? "",
       seatClass: trip.seat_class,
     }));
@@ -341,6 +384,7 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
       const trip = buildManualTrip({
         id: crypto.randomUUID(),
         mode,
+        purpose: form.purpose,
         origin,
         destination,
         departureLocal: form.departureLocal,
@@ -431,6 +475,14 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
               <InputField label={c.nameEn} onChange={(value) => updateDraft("nameEn", value)} value={placeDraft.nameEn} />
               <InputField label={c.placeCode} onChange={(value) => updateDraft("code", value)} value={placeDraft.code} />
               <InputField label={c.country} onChange={(value) => updateDraft("country", value)} value={placeDraft.country} />
+              <SelectField
+                label={c.continent}
+                onChange={(value) => updateDraft("continent", value as Continent | "")}
+                options={continentOrder.map((continent) => ({ label: continentLabels[language][continent], value: continent }))}
+                placeholder={c.continentPlaceholder}
+                required
+                value={placeDraft.continent}
+              />
               <InputField label={c.timeZone} onChange={(value) => updateDraft("timeZone", value)} placeholder="Asia/Taipei" value={placeDraft.timeZone} />
               <div className="grid grid-cols-2 gap-2">
                 <InputField label={`${c.coordinates} — longitude`} onChange={(value) => updateDraft("longitude", value)} placeholder="121.5654" type="number" value={placeDraft.longitude} />
@@ -442,6 +494,28 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
               <button className="rounded-xl border border-slate-300 px-3 py-2 text-sm font-bold text-slate-700 hover:border-slate-400 dark:border-slate-700 dark:text-slate-200" onClick={() => setCustomFor(null)} type="button">{c.cancel}</button>
             </div>
           </fieldset> : null}
+
+          <fieldset className="mt-6">
+            <legend className="text-sm font-semibold text-slate-700 dark:text-slate-200">{c.purpose}</legend>
+            <p className="mt-1 text-xs leading-5 text-slate-500">{c.purposeHint}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {purposeOrder.map((purpose) => (
+                <label className="cursor-pointer" key={purpose}>
+                  <input
+                    checked={form.purpose === purpose}
+                    className="peer sr-only"
+                    name="journey-purpose"
+                    onChange={() => setForm((current) => ({ ...current, purpose }))}
+                    type="radio"
+                    value={purpose}
+                  />
+                  <span className="inline-flex rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 transition peer-checked:border-teal-700 peer-checked:bg-teal-700 peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-teal-500 peer-focus-visible:ring-offset-2 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:peer-checked:border-teal-500 dark:peer-checked:bg-teal-600">
+                    {purposeLabels[language][purpose]}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
@@ -512,6 +586,30 @@ function InputField({ label, onChange, placeholder, type = "text", value }: {
     <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
       {label}
       <input className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 font-normal text-slate-900 outline-none ring-teal-500 transition placeholder:text-slate-400 focus:ring-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white" onChange={(event) => onChange(event.target.value)} placeholder={placeholder} step={type === "number" ? "any" : undefined} type={type} value={value} />
+    </label>
+  );
+}
+
+function SelectField({ label, onChange, options, placeholder, required = false, value }: {
+  label: string;
+  onChange: (value: string) => void;
+  options: Array<{ label: string; value: string }>;
+  placeholder: string;
+  required?: boolean;
+  value: string;
+}) {
+  return (
+    <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
+      {label}
+      <select
+        className="mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 font-normal text-slate-900 outline-none ring-teal-500 transition focus:ring-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+        onChange={(event) => onChange(event.target.value)}
+        required={required}
+        value={value}
+      >
+        <option disabled value="">{placeholder}</option>
+        {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+      </select>
     </label>
   );
 }

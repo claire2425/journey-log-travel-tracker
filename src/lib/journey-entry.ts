@@ -1,5 +1,5 @@
 import { greatCircleDistanceKm } from "@/lib/geo";
-import { TripSchema, type Place, type Trip, type TripMode } from "@/lib/types";
+import { TripSchema, type Place, type Trip, type TripMode, type TripPurpose } from "@/lib/types";
 
 type WallClock = {
   year: number;
@@ -20,6 +20,7 @@ export type ManualJourneyInput = {
   carrierCode?: string;
   carrierLogoUrl?: string;
   serviceNumber?: string;
+  purpose?: TripPurpose;
   seatClass?: string;
   seat?: string;
   vehicleType?: string;
@@ -161,6 +162,7 @@ export function buildManualTrip(input: ManualJourneyInput): Trip {
     carrier_code: input.carrierCode,
     carrier_logo_url: input.carrierLogoUrl,
     service_number: input.serviceNumber?.trim() ?? "",
+    purpose: input.purpose,
     seat_class: input.seatClass?.trim() ?? "",
     seat: input.seat?.trim() ?? "",
     vehicle_type: input.vehicleType?.trim() || undefined,

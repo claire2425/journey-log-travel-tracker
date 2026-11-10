@@ -2,6 +2,10 @@ import { z } from "zod";
 
 export const placeKinds = ["airport", "station", "custom"] as const;
 export const tripModes = ["flight", "rail", "cruise", "other"] as const;
+export const continents = ["africa", "antarctica", "asia", "europe", "north_america", "oceania", "south_america"] as const;
+export const tripPurposes = ["leisure", "business", "personal", "other"] as const;
+export const tripPurposeFilters = [...tripPurposes, "unclassified"] as const;
+export const journeyDistanceBands = ["short", "medium", "long"] as const;
 
 const TripModeSchema = z.preprocess(
   (value) => value === "hsr" ? "rail" : value,
@@ -139,6 +143,9 @@ export const PlaceSchema = z.object({
   longitude: z.number().gte(-180).lte(180),
   country: z.string().min(1),
   time_zone: z.string().min(1),
+  // Optional so saved places from earlier versions remain valid. Where it is
+  // absent, journey filtering uses the small country fallback in geography.ts.
+  continent: z.enum(continents).optional(),
 });
 
 export const TripSchema = z.object({
@@ -152,6 +159,12 @@ export const TripSchema = z.object({
   carrier_code: CarrierCodeSchema,
   carrier_logo_url: CarrierLogoUrlSchema,
   service_number: z.string().trim(),
+  // Optional for backwards compatibility with travel records created before
+  // journey intent was captured.
+  purpose: z.preprocess(
+    (value) => typeof value === "string" ? value.trim().toLocaleLowerCase() || undefined : value,
+    z.enum(tripPurposes).optional(),
+  ),
   seat_class: z.string().trim(),
   seat: z.string().trim(),
   vehicle_type: z.string().trim().optional(),
@@ -172,6 +185,10 @@ export const TripSchema = z.object({
 export type Place = z.infer<typeof PlaceSchema>;
 export type Trip = z.infer<typeof TripSchema>;
 export type TripMode = Trip["mode"];
+export type Continent = (typeof continents)[number];
+export type TripPurpose = (typeof tripPurposes)[number];
+export type TripPurposeFilter = (typeof tripPurposeFilters)[number];
+export type DistanceBand = (typeof journeyDistanceBands)[number];
 export type ExpenseMember = z.infer<typeof ExpenseMemberSchema>;
 export type ExpenseLedgerSettings = z.infer<typeof ExpenseLedgerSettingsSchema>;
 export type ExpenseSettlementSnapshot = z.infer<typeof ExpenseSettlementSnapshotSchema>;
