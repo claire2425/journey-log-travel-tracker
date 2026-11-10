@@ -9,6 +9,7 @@ import { CustomPlaceInUseError, deleteCustomPlace, saveJourneyWithCustomPlaces, 
 import { clearDemoTrips, deleteTrip, listTrips, loadDemoTrips, type TripFilters } from "@/db/trips";
 import { REFERENCE_PLACES } from "@/lib/demo-trips";
 import { getPlaceContinent, getTripDistanceBand } from "@/lib/geography";
+import { hasAllSelections, toggleAllSelections, toggleSelection } from "@/lib/filter-selection";
 import { modeColor } from "@/lib/journey-colors";
 import { getJourneyDepartureLocalDate, getJourneyDepartureLocalYear } from "@/lib/journey-date";
 import { lookupOperator } from "@/lib/operator-directory";
@@ -53,6 +54,8 @@ const copy = {
     trip: "旅程",
     filterCount: "個篩選條件",
     clearFilters: "清除篩選",
+    selectAll: "全選",
+    clearAll: "取消全選",
     loadSuccess: "已載入示範旅程。",
     clearSuccess: "已清除示範旅程。",
     mapTitle: "你的旅行足跡",
@@ -120,6 +123,8 @@ const copy = {
     trip: "journey",
     filterCount: "active filters",
     clearFilters: "Clear filters",
+    selectAll: "Select all",
+    clearAll: "Clear all",
     loadSuccess: "Sample journeys loaded.",
     clearSuccess: "Sample journeys cleared.",
     mapTitle: "Your travel footprint",
@@ -202,28 +207,40 @@ function purposeLabel(purpose: TripPurposeFilter, language: Language): string {
   return purposeLabels[purpose][language];
 }
 
-function toggleSelection<T extends string | number>(selected: readonly T[], value: T): T[] | undefined {
-  const next = selected.includes(value) ? selected.filter((item) => item !== value) : [...selected, value];
-  return next.length ? next : undefined;
-}
-
 function FilterChipGroup<T extends string | number>({
+  clearAllLabel,
   label,
+  onToggleAll,
   options,
   selected,
+  selectAllLabel,
   onToggle,
   getLabel,
 }: {
+  clearAllLabel: string;
   label: string;
+  onToggleAll: () => void;
   options: readonly T[];
   selected: readonly T[];
+  selectAllLabel: string;
   onToggle: (value: T) => void;
   getLabel: (value: T) => string;
 }) {
+  const allSelected = hasAllSelections(selected, options);
+
   return (
     <fieldset>
       <legend className="text-sm font-semibold text-slate-700 dark:text-slate-200">{label}</legend>
       <div className="mt-2 flex flex-wrap gap-2">
+        {options.length ? <button
+          aria-label={`${label}：${allSelected ? clearAllLabel : selectAllLabel}`}
+          aria-pressed={allSelected}
+          className={`rounded-xl border px-3 py-2 text-sm font-bold transition ${allSelected ? "border-teal-700 bg-teal-700 text-white" : "border-slate-400 bg-white text-slate-800 hover:border-teal-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"}`}
+          onClick={onToggleAll}
+          type="button"
+        >
+          {allSelected ? clearAllLabel : selectAllLabel}
+        </button> : null}
         {options.map((option) => {
           const isSelected = selected.includes(option);
           return <button aria-pressed={isSelected} className={`rounded-xl border px-3 py-2 text-sm font-bold transition ${isSelected ? "border-teal-700 bg-teal-700 text-white" : "border-slate-300 bg-slate-50 text-slate-700 hover:border-teal-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200"}`} key={String(option)} onClick={() => onToggle(option)} type="button">{getLabel(option)}</button>;
@@ -460,6 +477,26 @@ export function TripDashboard() {
     updateFilters({ ...filters, purposes: toggleSelection(selectedPurposes, purpose) });
   }
 
+  function toggleAllModes() {
+    updateFilters({ ...filters, mode: undefined, modes: toggleAllSelections(selectedModes, modeOrder) });
+  }
+
+  function toggleAllYears() {
+    updateFilters({ ...filters, year: undefined, years: toggleAllSelections(selectedYears, years) });
+  }
+
+  function toggleAllContinents() {
+    updateFilters({ ...filters, continents: toggleAllSelections(selectedContinents, continentFilters) });
+  }
+
+  function toggleAllDistanceBands() {
+    updateFilters({ ...filters, distance_bands: toggleAllSelections(selectedDistanceBands, journeyDistanceBands) });
+  }
+
+  function toggleAllPurposes() {
+    updateFilters({ ...filters, purposes: toggleAllSelections(selectedPurposes, purposeFilterOrder) });
+  }
+
   async function handleLoadSample() {
     setIsSaving(true);
     const nextFilters: TripFilters = {};
@@ -665,11 +702,11 @@ export function TripDashboard() {
             <div className="pb-0.5 text-sm leading-6 text-slate-500">{c.filterHint}</div>
           </div>
           <div className="mt-5 grid gap-5 lg:grid-cols-2">
-            <FilterChipGroup getLabel={(year) => String(year)} label={c.yearLabel} onToggle={toggleYear} options={years} selected={selectedYears} />
-            <FilterChipGroup getLabel={(mode) => modeLabels[language][mode]} label={c.modeLabel} onToggle={toggleMode} options={modeOrder} selected={selectedModes} />
-            <FilterChipGroup getLabel={(continent) => continentLabel(continent, language)} label={c.continentLabel} onToggle={toggleContinent} options={continentFilters} selected={selectedContinents} />
-            <FilterChipGroup getLabel={(distanceBand) => distanceBandLabel(distanceBand, language)} label={c.distanceBandLabel} onToggle={toggleDistanceBand} options={journeyDistanceBands} selected={selectedDistanceBands} />
-            <FilterChipGroup getLabel={(purpose) => purposeLabel(purpose, language)} label={c.purposeLabel} onToggle={togglePurpose} options={purposeFilterOrder} selected={selectedPurposes} />
+            <FilterChipGroup clearAllLabel={c.clearAll} getLabel={(year) => String(year)} label={c.yearLabel} onToggle={toggleYear} onToggleAll={toggleAllYears} options={years} selectAllLabel={c.selectAll} selected={selectedYears} />
+            <FilterChipGroup clearAllLabel={c.clearAll} getLabel={(mode) => modeLabels[language][mode]} label={c.modeLabel} onToggle={toggleMode} onToggleAll={toggleAllModes} options={modeOrder} selectAllLabel={c.selectAll} selected={selectedModes} />
+            <FilterChipGroup clearAllLabel={c.clearAll} getLabel={(continent) => continentLabel(continent, language)} label={c.continentLabel} onToggle={toggleContinent} onToggleAll={toggleAllContinents} options={continentFilters} selectAllLabel={c.selectAll} selected={selectedContinents} />
+            <FilterChipGroup clearAllLabel={c.clearAll} getLabel={(distanceBand) => distanceBandLabel(distanceBand, language)} label={c.distanceBandLabel} onToggle={toggleDistanceBand} onToggleAll={toggleAllDistanceBands} options={journeyDistanceBands} selectAllLabel={c.selectAll} selected={selectedDistanceBands} />
+            <FilterChipGroup clearAllLabel={c.clearAll} getLabel={(purpose) => purposeLabel(purpose, language)} label={c.purposeLabel} onToggle={togglePurpose} onToggleAll={toggleAllPurposes} options={purposeFilterOrder} selectAllLabel={c.selectAll} selected={selectedPurposes} />
           </div>
           {activeFilterCount > 0 ? <div className="mt-5 flex items-center gap-3 border-t border-slate-100 pt-4 dark:border-slate-800"><span className="text-sm text-slate-500">{activeFilterCount} {c.filterCount}</span><button className="text-sm font-bold text-teal-700 hover:text-teal-900 dark:text-teal-300" onClick={() => updateFilters({})} type="button">{c.clearFilters}</button></div> : null}
         </section>
