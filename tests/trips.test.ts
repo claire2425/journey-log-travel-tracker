@@ -103,6 +103,14 @@ describe("trip repository", () => {
     }, database)).map((item) => item.id)).toEqual(["trip-1"]);
   });
 
+  it("can explicitly filter places whose continent is not known", async () => {
+    const unknownPlace = { ...tpe, id: "unknown-place", country: "Atlantis" };
+    await addTrip(trip({ origin: unknownPlace, destination: unknownPlace }), database);
+
+    expect((await listTrips({ continents: ["unclassified"] }, database)).map((item) => item.id)).toEqual(["trip-1"]);
+    expect(await listTrips({ continents: ["asia"] }, database)).toHaveLength(0);
+  });
+
   it("normalizes an optional carrier code and accepts only http(s) logo URLs", async () => {
     await addTrip(trip({
       carrier_code: " br ",

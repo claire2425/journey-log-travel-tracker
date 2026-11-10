@@ -2,6 +2,14 @@ import type { Trip } from "@/lib/types";
 
 type DepartureJourney = Pick<Trip, "departure" | "origin">;
 
+type LocalDateTimeFields = {
+  year: string;
+  month: string;
+  day: string;
+  hour?: string;
+  minute?: string;
+};
+
 function utcDatePart(instant: string): string {
   const date = new Date(instant);
   if (Number.isFinite(date.getTime())) return date.toISOString().slice(0, 10);
@@ -21,18 +29,7 @@ export function getJourneyDepartureLocalDate(trip: DepartureJourney): string {
   if (!Number.isFinite(instant.getTime())) return utcDatePart(trip.departure);
 
   try {
-    const fields = Object.fromEntries(
-      new Intl.DateTimeFormat("en-CA", {
-        calendar: "iso8601",
-        day: "2-digit",
-        month: "2-digit",
-        numberingSystem: "latn",
-        timeZone: trip.origin.time_zone,
-        year: "numeric",
-      }).formatToParts(instant)
-        .filter((part) => part.type !== "literal")
-        .map((part) => [part.type, part.value]),
-    );
+    const fields = readLocalDateTimeFields(instant, trip.origin.time_zone);
     const year = fields.year;
     const month = fields.month;
     const day = fields.day;
@@ -47,4 +44,46 @@ export function getJourneyDepartureLocalDate(trip: DepartureJourney): string {
 
 export function getJourneyDepartureLocalYear(trip: DepartureJourney): number {
   return Number(getJourneyDepartureLocalDate(trip).slice(0, 4));
+}
+
+function readLocalDateTimeFields(instant: Date, timeZone: string): LocalDateTimeFields {
+  return Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      calendar: "iso8601",
+      day: "2-digit",
+      hour: "2-digit",
+      hourCycle: "h23",
+      minute: "2-digit",
+      month: "2-digit",
+      numberingSystem: "latn",
+      timeZone,
+      year: "numeric",
+    }).formatToParts(instant)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  ) as LocalDateTimeFields;
+}
+
+/**
+ * Formats a stored instant for an HTML datetime-local input at a place's local
+ * time. This preserves the traveller-facing wall-clock time while editing a
+ * journey, rather than exposing the stored UTC instant.
+ */
+export function getLocalDateTimeInputValue(instantValue: string, timeZone: string): string | undefined {
+  const instant = new Date(instantValue);
+  if (!Number.isFinite(instant.getTime())) return undefined;
+
+  try {
+    const fields = readLocalDateTimeFields(instant, timeZone);
+    if (
+      !/^\d{4}$/.test(fields.year)
+      || !/^\d{2}$/.test(fields.month)
+      || !/^\d{2}$/.test(fields.day)
+      || !/^\d{2}$/.test(fields.hour ?? "")
+      || !/^\d{2}$/.test(fields.minute ?? "")
+    ) return undefined;
+    return `${fields.year}-${fields.month}-${fields.day}T${fields.hour}:${fields.minute}`;
+  } catch {
+    return undefined;
+  }
 }

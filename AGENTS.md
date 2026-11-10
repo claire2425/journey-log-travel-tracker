@@ -20,3 +20,13 @@ A personal travel log for flights, rail (including high-speed rail), and cruises
 - Before finishing any task: run lint, type-check and tests, fix failures, then summarise what changed and what I should check by hand.
 - Commit at the end of each task with a clear message. Do not push.
 - Ask me if something is unclear instead of guessing.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

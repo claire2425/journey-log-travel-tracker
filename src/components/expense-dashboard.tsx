@@ -5,6 +5,7 @@ import { AppNavigation } from "@/components/app-navigation";
 import { addExpense, deleteExpense, getExpenseLedgerSettings, listExpenses, saveExpenseLedgerSettings, updateExpense } from "@/db/expenses";
 import { AutomaticExchangeRateQuoteSchema, type AutomaticExchangeRateQuote } from "@/lib/exchange-rates";
 import { calculateExpenseSettlement } from "@/lib/expense-settlement";
+import { getLocalCalendarDate } from "@/lib/local-date";
 import { buildExpenseSettlementSnapshot, formatMoneyFromMinorUnits, getCurrencyFractionDigits, isValidPositiveDecimalRate, parseMoneyToMinorUnits, splitAmountEqually } from "@/lib/money";
 import type { Expense, ExpenseLedgerSettings, ExpenseMember } from "@/lib/types";
 
@@ -60,7 +61,7 @@ const copy = {
 
 const currencyOptions = ["TWD", "JPY", "USD", "EUR", "GBP", "KRW", "HKD", "CNY", "SGD", "THB"];
 
-function today() { return new Date().toISOString().slice(0, 10); }
+function today() { return getLocalCalendarDate(); }
 
 function interpolate(template: string, values: Record<string, string | number>) {
   return template.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? ""));

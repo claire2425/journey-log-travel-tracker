@@ -1,7 +1,7 @@
 import "fake-indexeddb/auto";
 import { beforeEach, describe, expect, it } from "vitest";
 import { JourneyDatabase } from "@/db/index";
-import { CustomPlaceInUseError, deleteCustomPlace, saveJourneyWithCustomPlaces } from "@/db/journey-storage";
+import { CustomPlaceInUseError, deleteCustomPlace, saveJourneyWithCustomPlaces, updateCustomPlaceAndJourneyReferences } from "@/db/journey-storage";
 import type { Place, Trip } from "@/lib/types";
 
 const tpe: Place = {
@@ -119,5 +119,27 @@ describe("journey storage", () => {
     await expect(deleteCustomPlace(savedPlace.id, database)).rejects.toBeInstanceOf(CustomPlaceInUseError);
     expect(await database.custom_places.get(savedPlace.id)).toBeDefined();
     expect(await database.trips.get("trip-1")).toBeDefined();
+  });
+
+  it("updates a saved place and its embedded journey endpoints together", async () => {
+    await saveJourneyWithCustomPlaces({
+      trip: trip({ origin: savedPlace }),
+      customPlaces: [savedPlace],
+    }, database);
+
+    await updateCustomPlaceAndJourneyReferences({ ...savedPlace, continent: "asia" }, database);
+
+    expect(await database.custom_places.get(savedPlace.id)).toMatchObject({ continent: "asia" });
+    expect(await database.trips.get("trip-1")).toMatchObject({ origin: { id: savedPlace.id, continent: "asia" } });
+  });
+
+  it("updates an existing journey atomically instead of adding another record", async () => {
+    await saveJourneyWithCustomPlaces({ trip: trip() }, database);
+    const updated = trip({ carrier: "Changed carrier", updated_at: "2026-01-02T00:00:00+00:00" });
+
+    await saveJourneyWithCustomPlaces({ trip: updated, operation: "update" }, database);
+
+    expect(await database.trips.count()).toBe(1);
+    expect(await database.trips.get("trip-1")).toMatchObject({ carrier: "Changed carrier" });
   });
 });

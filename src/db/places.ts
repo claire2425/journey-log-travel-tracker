@@ -15,6 +15,7 @@ function normalizeCustomPlace(input: CustomPlaceInput): Place {
     name_en: input.name_en.trim(),
     code: input.code.trim().toUpperCase(),
     country: input.country.trim(),
+    city: input.city?.trim() || undefined,
     time_zone: input.time_zone.trim(),
   });
 }

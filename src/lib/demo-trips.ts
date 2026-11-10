@@ -9,19 +9,19 @@ export const DEMO_DATA_SOURCE_NOTE =
   "Approximate display-only coordinates: OpenStreetMap contributors (checked 2026-11-10). Not for navigation.";
 
 const places = {
-  tpe: { id: "tpe", name_zh: "桃園國際機場", name_en: "Taiwan Taoyuan International Airport", code: "TPE", kind: "airport", latitude: 25.0797, longitude: 121.2342, country: "Taiwan", time_zone: "Asia/Taipei" },
-  kix: { id: "kix", name_zh: "關西國際機場", name_en: "Kansai International Airport", code: "KIX", kind: "airport", latitude: 34.4347, longitude: 135.244, country: "Japan", time_zone: "Asia/Tokyo" },
-  nrt: { id: "nrt", name_zh: "成田國際機場", name_en: "Narita International Airport", code: "NRT", kind: "airport", latitude: 35.772, longitude: 140.3929, country: "Japan", time_zone: "Asia/Tokyo" },
-  lhr: { id: "lhr", name_zh: "倫敦希斯洛機場", name_en: "London Heathrow Airport", code: "LHR", kind: "airport", latitude: 51.47, longitude: -0.4543, country: "United Kingdom", time_zone: "Europe/London" },
-  cdg: { id: "cdg", name_zh: "巴黎戴高樂機場", name_en: "Paris Charles de Gaulle Airport", code: "CDG", kind: "airport", latitude: 49.0097, longitude: 2.5479, country: "France", time_zone: "Europe/Paris" },
-  taipei: { id: "taipei-main", name_zh: "台北車站", name_en: "Taipei Main Station", code: "TPE-R", kind: "station", latitude: 25.0478, longitude: 121.517, country: "Taiwan", time_zone: "Asia/Taipei" },
-  taichung: { id: "taichung-hsr", name_zh: "台中高鐵站", name_en: "Taichung HSR Station", code: "TCG", kind: "station", latitude: 24.2648, longitude: 120.7232, country: "Taiwan", time_zone: "Asia/Taipei" },
-  hualien: { id: "hualien", name_zh: "花蓮車站", name_en: "Hualien Station", code: "HUN", kind: "station", latitude: 23.9923, longitude: 121.6116, country: "Taiwan", time_zone: "Asia/Taipei" },
-  tokyo: { id: "tokyo", name_zh: "東京車站", name_en: "Tokyo Station", code: "TYO-R", kind: "station", latitude: 35.6812, longitude: 139.7671, country: "Japan", time_zone: "Asia/Tokyo" },
-  kyoto: { id: "kyoto", name_zh: "京都車站", name_en: "Kyoto Station", code: "KYO", kind: "station", latitude: 34.9859, longitude: 135.7588, country: "Japan", time_zone: "Asia/Tokyo" },
-  shinOsaka: { id: "shin-osaka", name_zh: "新大阪車站", name_en: "Shin-Osaka Station", code: "SHO", kind: "station", latitude: 34.7335, longitude: 135.5006, country: "Japan", time_zone: "Asia/Tokyo" },
-  stPancras: { id: "st-pancras", name_zh: "倫敦聖潘克拉斯車站", name_en: "London St Pancras International", code: "STP", kind: "station", latitude: 51.5319, longitude: -0.1264, country: "United Kingdom", time_zone: "Europe/London" },
-  gareDuNord: { id: "gare-du-nord", name_zh: "巴黎北站", name_en: "Paris Gare du Nord", code: "PGN", kind: "station", latitude: 48.8809, longitude: 2.3553, country: "France", time_zone: "Europe/Paris" },
+  tpe: { id: "tpe", name_zh: "桃園國際機場", name_en: "Taiwan Taoyuan International Airport", code: "TPE", kind: "airport", latitude: 25.0797, longitude: 121.2342, country: "Taiwan", city: "Taoyuan", time_zone: "Asia/Taipei" },
+  kix: { id: "kix", name_zh: "關西國際機場", name_en: "Kansai International Airport", code: "KIX", kind: "airport", latitude: 34.4347, longitude: 135.244, country: "Japan", city: "Osaka", time_zone: "Asia/Tokyo" },
+  nrt: { id: "nrt", name_zh: "成田國際機場", name_en: "Narita International Airport", code: "NRT", kind: "airport", latitude: 35.772, longitude: 140.3929, country: "Japan", city: "Tokyo", time_zone: "Asia/Tokyo" },
+  lhr: { id: "lhr", name_zh: "倫敦希斯洛機場", name_en: "London Heathrow Airport", code: "LHR", kind: "airport", latitude: 51.47, longitude: -0.4543, country: "United Kingdom", city: "London", time_zone: "Europe/London" },
+  cdg: { id: "cdg", name_zh: "巴黎戴高樂機場", name_en: "Paris Charles de Gaulle Airport", code: "CDG", kind: "airport", latitude: 49.0097, longitude: 2.5479, country: "France", city: "Paris", time_zone: "Europe/Paris" },
+  taipei: { id: "taipei-main", name_zh: "台北車站", name_en: "Taipei Main Station", code: "TPE-R", kind: "station", latitude: 25.0478, longitude: 121.517, country: "Taiwan", city: "Taipei", time_zone: "Asia/Taipei" },
+  taichung: { id: "taichung-hsr", name_zh: "台中高鐵站", name_en: "Taichung HSR Station", code: "TCG", kind: "station", latitude: 24.2648, longitude: 120.7232, country: "Taiwan", city: "Taichung", time_zone: "Asia/Taipei" },
+  hualien: { id: "hualien", name_zh: "花蓮車站", name_en: "Hualien Station", code: "HUN", kind: "station", latitude: 23.9923, longitude: 121.6116, country: "Taiwan", city: "Hualien", time_zone: "Asia/Taipei" },
+  tokyo: { id: "tokyo", name_zh: "東京車站", name_en: "Tokyo Station", code: "TYO-R", kind: "station", latitude: 35.6812, longitude: 139.7671, country: "Japan", city: "Tokyo", time_zone: "Asia/Tokyo" },
+  kyoto: { id: "kyoto", name_zh: "京都車站", name_en: "Kyoto Station", code: "KYO", kind: "station", latitude: 34.9859, longitude: 135.7588, country: "Japan", city: "Kyoto", time_zone: "Asia/Tokyo" },
+  shinOsaka: { id: "shin-osaka", name_zh: "新大阪車站", name_en: "Shin-Osaka Station", code: "SHO", kind: "station", latitude: 34.7335, longitude: 135.5006, country: "Japan", city: "Osaka", time_zone: "Asia/Tokyo" },
+  stPancras: { id: "st-pancras", name_zh: "倫敦聖潘克拉斯車站", name_en: "London St Pancras International", code: "STP", kind: "station", latitude: 51.5319, longitude: -0.1264, country: "United Kingdom", city: "London", time_zone: "Europe/London" },
+  gareDuNord: { id: "gare-du-nord", name_zh: "巴黎北站", name_en: "Paris Gare du Nord", code: "PGN", kind: "station", latitude: 48.8809, longitude: 2.3553, country: "France", city: "Paris", time_zone: "Europe/Paris" },
 } satisfies Record<string, Place>;
 
 /**

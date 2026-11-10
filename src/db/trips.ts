@@ -2,7 +2,7 @@ import { db as defaultDb, type JourneyDatabase } from "@/db/index";
 import { getDemoTrips } from "@/lib/demo-trips";
 import { getJourneyDepartureLocalYear } from "@/lib/journey-date";
 import { getPlaceContinent, getTripDistanceBand } from "@/lib/geography";
-import { TripSchema, type Continent, type DistanceBand, type Trip, type TripMode, type TripPurposeFilter } from "@/lib/types";
+import { TripSchema, type ContinentFilter, type DistanceBand, type Trip, type TripMode, type TripPurposeFilter } from "@/lib/types";
 
 export type TripFilters = {
   /** Legacy single-select mode filter. It is combined with `modes` when both are supplied. */
@@ -14,7 +14,7 @@ export type TripFilters = {
   /** Multiple selected departure years; matching any selected year includes the trip. */
   years?: number[];
   /** A trip matches when either endpoint belongs to a selected continent. */
-  continents?: Continent[];
+  continents?: ContinentFilter[];
   /** Based on the recorded route distance: short <800, medium <3500, long >=3500 km. */
   distance_bands?: DistanceBand[];
   /** `unclassified` includes records created before a journey purpose was saved. */
@@ -65,7 +65,9 @@ export async function listTrips(filters: TripFilters = {}, database: JourneyData
     if (selectedYears.size > 0 && !selectedYears.has(getJourneyDepartureLocalYear(trip))) return false;
     if (selectedContinents.size > 0) {
       const endpointContinents = [getPlaceContinent(trip.origin), getPlaceContinent(trip.destination)];
-      if (!endpointContinents.some((continent) => continent && selectedContinents.has(continent))) return false;
+      const matchesKnownContinent = endpointContinents.some((continent) => continent && selectedContinents.has(continent));
+      const matchesUnclassified = selectedContinents.has("unclassified") && endpointContinents.some((continent) => !continent);
+      if (!matchesKnownContinent && !matchesUnclassified) return false;
     }
     if (selectedDistanceBands.size > 0 && !selectedDistanceBands.has(getTripDistanceBand(trip))) return false;
     if (selectedPurposes.size > 0 && !selectedPurposes.has(trip.purpose ?? "unclassified")) return false;

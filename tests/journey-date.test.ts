@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEMO_TRIPS } from "@/lib/demo-trips";
-import { getJourneyDepartureLocalDate, getJourneyDepartureLocalYear } from "@/lib/journey-date";
+import { getJourneyDepartureLocalDate, getJourneyDepartureLocalYear, getLocalDateTimeInputValue } from "@/lib/journey-date";
 
 describe("journey departure calendar date", () => {
   it("uses the departure place's calendar when UTC falls in the previous year", () => {
@@ -22,5 +22,10 @@ describe("journey departure calendar date", () => {
 
     expect(getJourneyDepartureLocalDate(losAngelesDeparture)).toBe("2025-12-31");
     expect(getJourneyDepartureLocalYear(losAngelesDeparture)).toBe(2025);
+  });
+
+  it("formats stored instants as the endpoint's wall-clock time for editing", () => {
+    expect(getLocalDateTimeInputValue("2025-12-31T16:30:00.000Z", "Asia/Taipei")).toBe("2026-01-01T00:30");
+    expect(getLocalDateTimeInputValue("2026-01-01T00:30:00.000Z", "America/Los_Angeles")).toBe("2025-12-31T16:30");
   });
 });

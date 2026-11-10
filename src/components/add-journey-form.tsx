@@ -2,6 +2,7 @@
 
 import { useId, useMemo, useState, type FormEvent, type KeyboardEvent } from "react";
 import { buildManualTrip } from "@/lib/journey-entry";
+import { getLocalDateTimeInputValue } from "@/lib/journey-date";
 import { identifyOperator, lookupOperator, type OperatorDirectoryEntry } from "@/lib/operator-directory";
 import { continents, PlaceSchema, tripPurposes, type Continent, type Place, type Trip, type TripMode, type TripPurpose } from "@/lib/types";
 
@@ -29,6 +30,7 @@ type PlaceDraft = {
   nameEn: string;
   code: string;
   country: string;
+  city: string;
   continent: Continent | "";
   timeZone: string;
   latitude: string;
@@ -39,8 +41,10 @@ type AddJourneyFormProps = {
   language: Language;
   places: Place[];
   existingTrips: Trip[];
+  editingTrip?: Trip | null;
   isSaving: boolean;
-  onSave: (trip: Trip, newPlaces: Place[]) => Promise<void>;
+  onCancelEdit?: () => void;
+  onSave: (trip: Trip, newPlaces: Place[], operation: "create" | "update") => Promise<void>;
 };
 
 const modeLabels: Record<Language, Record<TripMode, string>> = {
@@ -97,15 +101,38 @@ const emptyPlaceDraft = (): PlaceDraft => ({
   nameEn: "",
   code: "",
   country: "",
+  city: "",
   continent: "",
   timeZone: "Asia/Taipei",
   latitude: "",
   longitude: "",
 });
 
+function formForTrip(trip: Trip): JourneyFormState {
+  return {
+    purpose: trip.purpose ?? "unclassified",
+    serviceNumber: trip.service_number,
+    carrier: trip.carrier,
+    carrierCode: trip.carrier_code ?? "",
+    departureLocal: getLocalDateTimeInputValue(trip.departure, trip.origin.time_zone) ?? "",
+    arrivalLocal: getLocalDateTimeInputValue(trip.arrival, trip.destination.time_zone) ?? "",
+    seatClass: trip.seat_class,
+    seat: trip.seat,
+    vehicleType: trip.vehicle_type ?? "",
+    notes: trip.notes,
+    tags: trip.tags.join(", "),
+  };
+}
+
 function placeLabel(place: Place, language: Language): string {
   const name = language === "zh" ? place.name_zh : place.name_en;
-  return `${place.code} · ${name} (${place.country})`;
+  const location = [place.city, place.country].filter(Boolean).join(", ");
+  return `${place.code} · ${name} (${location})`;
+}
+
+function stablePlaceLabel(place: Place): string {
+  const location = [place.city, place.country].filter(Boolean).join(", ");
+  return `${place.code} · ${place.name_en} (${location})`;
 }
 
 function operatorName(operator: OperatorDirectoryEntry, language: Language): string {
@@ -166,6 +193,7 @@ function hasPlaceDetails(placeDraft: PlaceDraft): boolean {
     || placeDraft.nameEn.trim()
     || placeDraft.code.trim()
     || placeDraft.country.trim()
+    || placeDraft.city.trim()
     || placeDraft.continent
     || placeDraft.timeZone.trim() !== "Asia/Taipei"
     || placeDraft.latitude.trim()
@@ -173,13 +201,21 @@ function hasPlaceDetails(placeDraft: PlaceDraft): boolean {
   );
 }
 
-export function AddJourneyForm({ language, places, existingTrips, isSaving, onSave }: AddJourneyFormProps) {
-  const [mode, setMode] = useState<TripMode | null>(null);
-  const [form, setForm] = useState<JourneyFormState>(emptyForm);
-  const [originId, setOriginId] = useState("");
-  const [destinationId, setDestinationId] = useState("");
-  const [originQuery, setOriginQuery] = useState("");
-  const [destinationQuery, setDestinationQuery] = useState("");
+export function AddJourneyForm({
+  language,
+  places,
+  existingTrips,
+  editingTrip = null,
+  isSaving,
+  onCancelEdit,
+  onSave,
+}: AddJourneyFormProps) {
+  const [mode, setMode] = useState<TripMode | null>(() => editingTrip?.mode ?? null);
+  const [form, setForm] = useState<JourneyFormState>(() => editingTrip ? formForTrip(editingTrip) : emptyForm());
+  const [originId, setOriginId] = useState(() => editingTrip?.origin.id ?? "");
+  const [destinationId, setDestinationId] = useState(() => editingTrip?.destination.id ?? "");
+  const [originQuery, setOriginQuery] = useState(() => editingTrip ? stablePlaceLabel(editingTrip.origin) : "");
+  const [destinationQuery, setDestinationQuery] = useState(() => editingTrip ? stablePlaceLabel(editingTrip.destination) : "");
   const [customFor, setCustomFor] = useState<Endpoint | null>(null);
   const [placeDraft, setPlaceDraft] = useState<PlaceDraft>(emptyPlaceDraft);
   const [pendingPlaces, setPendingPlaces] = useState<Place[]>([]);
@@ -195,7 +231,9 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
   const c = language === "zh" ? {
     eyebrow: "旅程輸入",
     title: "新增旅程",
+    editTitle: "編輯旅程",
     description: "先選交通方式，再輸入路線與班號／車次。儲存後，資料只會留在這個瀏覽器。",
+    editDescription: "更新這趟旅程的本機資料；原始建立時間會保留不變。",
     stepOne: "1. 選擇交通方式",
     stepTwo: "2. 輸入旅程資料",
     origin: "出發地",
@@ -208,6 +246,7 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
     nameEn: "英文名稱",
     placeCode: "地點代碼／簡稱",
     country: "國家／地區",
+    city: "城市（選填）",
     continent: "洲別",
     continentPlaceholder: "選擇洲別",
     timeZone: "IANA 時區",
@@ -234,6 +273,8 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
     notes: "備註（選填）",
     tags: "標籤（選填，以逗號分隔）",
     saveJourney: "儲存旅程",
+    updateJourney: "更新旅程",
+    cancelEdit: "取消編輯",
     saving: "正在儲存⋯",
     routeSuggestions: "你已儲存的同路線紀錄",
     routeSuggestionHint: "這些是你自己的本機紀錄，不是即時班次；點一下可帶入營運公司與班號。",
@@ -249,11 +290,15 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
     invalidJourney: "請確認出發與抵達時間；抵達時間必須晚於出發時間。",
     saveFailed: "無法儲存旅程。請確認這個瀏覽器允許本機儲存後再試一次。",
     discardModeChange: "變更交通方式會清除尚未儲存的旅程資料。要繼續嗎？",
-    saved: "已儲存旅程，也會立即出現在地圖和統計中。",
+    cancelEditConfirm: "取消編輯會捨棄這次尚未儲存的變更。要繼續嗎？",
+    saved: "已儲存旅程。",
+    updated: "已更新旅程。",
   } : {
     eyebrow: "Journey entry",
     title: "Add a journey",
+    editTitle: "Edit journey",
     description: "Choose a travel mode first, then record the route and service. It stays in this browser.",
+    editDescription: "Update this local journey while preserving when it was originally created.",
     stepOne: "1. Choose a travel mode",
     stepTwo: "2. Enter journey details",
     origin: "Origin",
@@ -266,6 +311,7 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
     nameEn: "English name",
     placeCode: "Place code / short name",
     country: "Country / region",
+    city: "City (optional)",
     continent: "Continent",
     continentPlaceholder: "Choose a continent",
     timeZone: "IANA time zone",
@@ -292,6 +338,8 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
     notes: "Notes (optional)",
     tags: "Tags (optional, comma-separated)",
     saveJourney: "Save journey",
+    updateJourney: "Update journey",
+    cancelEdit: "Cancel editing",
     saving: "Saving…",
     routeSuggestions: "Your saved journeys on this route",
     routeSuggestionHint: "These are your local saved records, not a live timetable. Choose one to bring in its carrier and service number.",
@@ -307,10 +355,16 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
     invalidJourney: "Check the departure and arrival times; arrival must be after departure.",
     saveFailed: "The journey could not be saved. Check that this browser allows local storage and try again.",
     discardModeChange: "Changing travel mode will clear this unsaved journey. Continue?",
-    saved: "Journey saved. It is now included in your map and statistics.",
+    cancelEditConfirm: "Cancel editing and discard the unsaved changes?",
+    saved: "Journey saved.",
+    updated: "Journey updated.",
   };
 
-  const allPlaces = useMemo(() => deduplicatePlaces([...places, ...pendingPlaces]), [places, pendingPlaces]);
+  const allPlaces = useMemo(() => deduplicatePlaces([
+    ...places,
+    ...(editingTrip ? [editingTrip.origin, editingTrip.destination] : []),
+    ...pendingPlaces,
+  ]), [editingTrip, places, pendingPlaces]);
   const availablePlaces = useMemo(() => {
     if (!mode) return [];
     const kind = modePlaceKind(mode);
@@ -378,6 +432,14 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
     resetEntry();
   }
 
+  function cancelEditing() {
+    if (!editingTrip) return;
+    if (hasUnsavedEntry() && !window.confirm(c.cancelEditConfirm)) return;
+    resetEntry();
+    setMode(null);
+    onCancelEdit?.();
+  }
+
   function findPlace(value: string): Place | undefined {
     const normalized = value.trim().toLocaleLowerCase();
     if (!normalized) return undefined;
@@ -427,6 +489,7 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
       latitude,
       longitude,
       country: placeDraft.country.trim(),
+      city: placeDraft.city.trim(),
       continent: placeDraft.continent,
       time_zone: placeDraft.timeZone.trim(),
     });
@@ -497,7 +560,7 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
     let trip: Trip;
     try {
       trip = buildManualTrip({
-        id: crypto.randomUUID(),
+        id: editingTrip?.id ?? crypto.randomUUID(),
         mode,
         purpose: purpose === "unclassified" ? undefined : purpose,
         origin,
@@ -506,20 +569,22 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
         arrivalLocal: form.arrivalLocal,
         carrier: form.carrier,
         carrierCode: form.carrierCode,
+        carrierLogoUrl: editingTrip?.carrier_logo_url,
         serviceNumber: form.serviceNumber,
         seatClass: form.seatClass,
         seat: form.seat,
         vehicleType: form.vehicleType,
         notes: form.notes,
         tags: form.tags.split(","),
+        createdAt: editingTrip?.created_at,
       });
     } catch {
       return showMessage(c.invalidJourney, "error");
     }
 
     try {
-      await onSave(trip, pendingPlaces);
-      showMessage(c.saved, "success");
+      await onSave(trip, pendingPlaces, editingTrip ? "update" : "create");
+      showMessage(editingTrip ? c.updated : c.saved, "success");
       setMode(null);
       setForm(emptyForm());
       setOriginId("");
@@ -531,6 +596,7 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
       setPlaceDraft(emptyPlaceDraft());
       setCustomPlaceError("");
       setPurposeError(false);
+      if (editingTrip) onCancelEdit?.();
     } catch {
       showMessage(c.saveFailed, "error");
     }
@@ -540,8 +606,8 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
     <section className="mt-8 rounded-3xl border border-teal-200 bg-teal-50/70 p-5 shadow-sm dark:border-teal-900 dark:bg-teal-950/30 sm:p-6" aria-labelledby="add-journey-title">
       <div className="max-w-3xl">
         <p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700 dark:text-teal-300">{c.eyebrow}</p>
-        <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 dark:text-white" id="add-journey-title">{c.title}</h2>
-        <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{c.description}</p>
+        <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 dark:text-white" id="add-journey-title">{editingTrip ? c.editTitle : c.title}</h2>
+        <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{editingTrip ? c.editDescription : c.description}</p>
       </div>
 
       <div className="mt-5">
@@ -600,6 +666,7 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
               <InputField ariaDescribedBy={customPlaceError ? customPlaceErrorId : undefined} invalid={Boolean(customPlaceError)} label={c.nameEn} onChange={(value) => updateDraft("nameEn", value)} required value={placeDraft.nameEn} />
               <InputField ariaDescribedBy={customPlaceError ? customPlaceErrorId : undefined} invalid={Boolean(customPlaceError)} label={c.placeCode} onChange={(value) => updateDraft("code", value)} required value={placeDraft.code} />
               <InputField ariaDescribedBy={customPlaceError ? customPlaceErrorId : undefined} invalid={Boolean(customPlaceError)} label={c.country} onChange={(value) => updateDraft("country", value)} required value={placeDraft.country} />
+              <InputField ariaDescribedBy={customPlaceError ? customPlaceErrorId : undefined} invalid={Boolean(customPlaceError)} label={c.city} onChange={(value) => updateDraft("city", value)} value={placeDraft.city} />
               <SelectField
                 ariaDescribedBy={customPlaceError ? customPlaceErrorId : undefined}
                 invalid={Boolean(customPlaceError)}
@@ -699,7 +766,8 @@ export function AddJourneyForm({ language, places, existingTrips, isSaving, onSa
           </aside>
 
           <div className="mt-5 flex flex-wrap items-center gap-3">
-            <button className="rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-teal-800 disabled:cursor-wait disabled:opacity-60" disabled={isSaving} type="submit">{isSaving ? c.saving : c.saveJourney}</button>
+            <button className="rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-teal-800 disabled:cursor-wait disabled:opacity-60" disabled={isSaving} type="submit">{isSaving ? c.saving : (editingTrip ? c.updateJourney : c.saveJourney)}</button>
+            {editingTrip ? <button className="rounded-xl border border-slate-300 px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:border-slate-400 disabled:cursor-wait disabled:opacity-60 dark:border-slate-700 dark:text-slate-200" disabled={isSaving} onClick={cancelEditing} type="button">{c.cancelEdit}</button> : null}
             <p aria-live={messageKind === "error" ? "assertive" : "polite"} className={`text-sm font-medium ${messageKind === "error" ? "text-red-700 dark:text-red-300" : "text-teal-800 dark:text-teal-200"}`} role={messageKind === "error" ? "alert" : undefined}>{message}</p>
           </div>
         </form>

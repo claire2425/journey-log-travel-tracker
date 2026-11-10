@@ -4,14 +4,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AddJourneyForm } from "@/components/add-journey-form";
 import { AppNavigation } from "@/components/app-navigation";
 import { TripMap } from "@/components/trip-map";
-import { listCustomPlaces, saveCustomPlace } from "@/db/places";
-import { addTrip, clearDemoTrips, listTrips, loadDemoTrips, type TripFilters } from "@/db/trips";
+import { listCustomPlaces } from "@/db/places";
+import { CustomPlaceInUseError, deleteCustomPlace, saveJourneyWithCustomPlaces, updateCustomPlaceAndJourneyReferences } from "@/db/journey-storage";
+import { clearDemoTrips, deleteTrip, listTrips, loadDemoTrips, type TripFilters } from "@/db/trips";
 import { REFERENCE_PLACES } from "@/lib/demo-trips";
-import { getTripDistanceBand } from "@/lib/geography";
+import { getPlaceContinent, getTripDistanceBand } from "@/lib/geography";
 import { modeColor } from "@/lib/journey-colors";
+import { getJourneyDepartureLocalDate, getJourneyDepartureLocalYear } from "@/lib/journey-date";
 import { lookupOperator } from "@/lib/operator-directory";
 import { calculateJourneyStatistics, earthLapsForDistance } from "@/lib/statistics";
-import { continents, journeyDistanceBands, tripPurposes, type Continent, type DistanceBand, type Place, type Trip, type TripMode, type TripPurposeFilter } from "@/lib/types";
+import { continentFilters, journeyDistanceBands, tripPurposes, type Continent, type ContinentFilter, type DistanceBand, type Place, type Trip, type TripMode, type TripPurposeFilter } from "@/lib/types";
+import { calculateAnnualVisitStatistics } from "@/lib/visit-statistics";
 
 type Language = "zh" | "en";
 
@@ -55,6 +58,33 @@ const copy = {
     mapBody: "依目前顯示的旅程，以起訖點的近似連線繪製路線與站點；對向路線會以較粗線標示，點選路線或站點可查看資訊。",
     mapEmpty: "載入示範資料後，或新增自己的旅程後，路線與站點會出現在這裡。",
     storageError: "無法讀取這個瀏覽器的本機資料。請重新整理後再試一次。",
+    updateJourneySuccess: "已更新旅程。",
+    addJourneyHidden: "已儲存旅程，但它不符合目前套用的篩選條件。",
+    deleteJourney: "刪除旅程",
+    editJourney: "編輯旅程",
+    deleteJourneyConfirm: "確定要刪除這趟旅程嗎？此動作無法復原。",
+    journeyDeleted: "已刪除旅程。",
+    savedPlaces: "已儲存的自訂地點",
+    savedPlacesHint: "可在這裡補上舊地點的洲別。若地點仍被旅程使用，為避免破壞歷史紀錄，不能直接刪除。",
+    noSavedPlaces: "尚未新增任何自訂地點。",
+    deletePlace: "刪除地點",
+    deletePlaceConfirm: "確定要刪除這個未使用的自訂地點嗎？此動作無法復原。",
+    placeDeleted: "已刪除自訂地點。",
+    placeInUse: "這個地點正在被旅程使用，因此不能刪除。",
+    placeContinent: "洲別",
+    placeContinentSaved: "已更新地點洲別和相關旅程。",
+    unclassifiedContinent: "未分類",
+    mapConsentTitle: "載入互動地圖",
+    mapConsentBody: "互動底圖來自 OpenStreetMap。按下後，瀏覽器會向該服務請求地圖圖磚（服務可看到 IP 位址和檢視範圍）；Journey Log 不會把旅程資料上傳給它。",
+    mapConsentButton: "載入地圖",
+    mapPrivacy: "尚未載入底圖，因此目前沒有向地圖服務提出網路請求。",
+    languageLabel: "語言",
+    annualVisits: "年度足跡統計",
+    annualVisitsHint: "依目前顯示的旅程與出發地當地年份計算；同一年中，起點和終點都會列入造訪。城市採自訂城市欄位，舊紀錄未填時會以地點名稱計算。",
+    annualYear: "年份",
+    annualContinents: "洲別",
+    annualCountries: "國家／地區",
+    annualCities: "城市／地點",
   },
   en: {
     eyebrow: "YOUR TRAVEL, YOUR DEVICE",
@@ -95,6 +125,33 @@ const copy = {
     mapBody: "Approximate endpoint connections and stops are drawn from the journeys currently shown. Reverse routes use thicker lines; select a route or stop for details.",
     mapEmpty: "Load the sample data or add your own journey to see routes and stops here.",
     storageError: "This browser could not read its local data. Refresh the page and try again.",
+    updateJourneySuccess: "Journey updated.",
+    addJourneyHidden: "Journey saved, but it does not match the filters currently applied.",
+    deleteJourney: "Delete journey",
+    editJourney: "Edit journey",
+    deleteJourneyConfirm: "Delete this journey? This cannot be undone.",
+    journeyDeleted: "Journey deleted.",
+    savedPlaces: "Saved custom places",
+    savedPlacesHint: "You can add a continent to older places here. A place still used by a journey cannot be deleted, so history remains intact.",
+    noSavedPlaces: "No custom places yet.",
+    deletePlace: "Delete place",
+    deletePlaceConfirm: "Delete this unused custom place? This cannot be undone.",
+    placeDeleted: "Custom place deleted.",
+    placeInUse: "This place is still used by a journey, so it cannot be deleted.",
+    placeContinent: "Continent",
+    placeContinentSaved: "The place continent and related journeys were updated.",
+    unclassifiedContinent: "Unclassified",
+    mapConsentTitle: "Load interactive map",
+    mapConsentBody: "The interactive basemap comes from OpenStreetMap. Loading it asks that service for map tiles (which can reveal your IP address and viewport); Journey Log does not upload your journey records to it.",
+    mapConsentButton: "Load map",
+    mapPrivacy: "The basemap is not loaded, so no request has been made to a map service.",
+    languageLabel: "Language",
+    annualVisits: "Yearly travel footprint",
+    annualVisitsHint: "Uses the journeys currently shown and the departure location's calendar year. Both endpoints count as visited; a legacy place without a city uses its place name instead.",
+    annualYear: "Year",
+    annualContinents: "Continents",
+    annualCountries: "Countries / regions",
+    annualCities: "Cities / places",
   },
 } as const;
 
@@ -113,6 +170,7 @@ const continentLabels: Record<string, Record<Language, string>> = {
   north_america: { zh: "北美洲", en: "North America" },
   oceania: { zh: "大洋洲", en: "Oceania" },
   south_america: { zh: "南美洲", en: "South America" },
+  unclassified: { zh: "未分類", en: "Unclassified" },
 };
 
 const distanceBandLabels: Record<DistanceBand, Record<Language, string>> = {
@@ -131,7 +189,7 @@ const purposeLabels: Record<TripPurposeFilter, Record<Language, string>> = {
 
 const purposeFilterOrder = [...tripPurposes, "unclassified"] as const satisfies readonly TripPurposeFilter[];
 
-function continentLabel(continent: Continent, language: Language): string {
+function continentLabel(continent: ContinentFilter, language: Language): string {
   return continentLabels[continent]?.[language] ?? continent;
 }
 
@@ -174,8 +232,9 @@ function FilterChipGroup<T extends string | number>({
   );
 }
 
-function formatDate(value: string, language: Language) {
-  const date = new Date(`${value.slice(0, 10)}T12:00:00Z`);
+function formatDate(trip: Trip, language: Language) {
+  const [year, month, day] = getJourneyDepartureLocalDate(trip).split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day, 12));
   return new Intl.DateTimeFormat(language === "zh" ? "zh-TW" : "en-GB", {
     year: "numeric",
     month: "short",
@@ -192,6 +251,12 @@ function formatDuration(minutes: number, language: Language) {
 
 function formatDistance(distanceKm: number, language: Language) {
   return new Intl.NumberFormat(language === "zh" ? "zh-TW" : "en-GB").format(Math.round(distanceKm));
+}
+
+function formatJourneyDistance(distanceKm: number, language: Language) {
+  return new Intl.NumberFormat(language === "zh" ? "zh-TW" : "en-GB", {
+    maximumFractionDigits: 1,
+  }).format(distanceKm);
 }
 
 function formatEarthLaps(distanceKm: number, language: Language) {
@@ -252,23 +317,17 @@ function StatsCard({ label, value, detail }: { label: string; value: string; det
 }
 
 function CarrierMark({ trip }: { trip: Trip }) {
-  const [imageFailed, setImageFailed] = useState(false);
   const operator = (trip.mode === "flight" || trip.mode === "rail") ? lookupOperator(trip.carrier_code ?? "", trip.mode) : undefined;
   const text = operator?.logo_text ?? trip.carrier_code ?? (trip.carrier.slice(0, 4).toUpperCase() || "—");
-
-  if (trip.carrier_logo_url && !imageFailed) {
-    // The provider owns this optional URL, so a static Next.js remote-host allowlist is unsuitable here.
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img alt="" className="h-10 w-10 rounded-xl border border-slate-200 bg-white object-contain p-1 dark:border-slate-700" onError={() => setImageFailed(true)} src={trip.carrier_logo_url} />;
-  }
-
+  // Do not fetch arbitrary carrier-logo URLs. A future licensed provider can
+  // supply vetted local assets after the user has chosen to use that service.
   return <span aria-hidden="true" className="inline-flex h-10 min-w-10 items-center justify-center rounded-xl px-2 text-xs font-black tracking-wide text-white" style={{ backgroundColor: operator?.brand_color ?? "#475569" }}>{text}</span>;
 }
 
-function TripCard({ trip, language }: { trip: Trip; language: Language }) {
+function TripCard({ trip, language, onDelete, onEdit }: { trip: Trip; language: Language; onDelete: (trip: Trip) => void; onEdit: (trip: Trip) => void }) {
   const c = copy[language];
   const transportColor = modeColor(trip.mode);
-  const number = new Intl.NumberFormat(language === "zh" ? "zh-TW" : "en-GB").format(Math.round(trip.distance_km));
+  const number = formatJourneyDistance(trip.distance_km, language);
   const names = language === "zh" ? { origin: trip.origin.name_zh, destination: trip.destination.name_zh } : { origin: trip.origin.name_en, destination: trip.destination.name_en };
   const distanceBand = getTripDistanceBand(trip);
 
@@ -279,7 +338,7 @@ function TripCard({ trip, language }: { trip: Trip; language: Language }) {
           <span className="rounded-full border bg-white px-3 py-1 text-xs font-bold dark:bg-slate-950" style={{ borderColor: transportColor, color: transportColor }}>{modeLabels[language][trip.mode]}</span>
           {trip.is_demo ? <span className="text-xs font-medium text-slate-500">{c.demo}</span> : null}
         </div>
-        <time className="text-sm font-medium text-slate-500">{formatDate(trip.departure, language)}</time>
+        <time className="text-sm font-medium text-slate-500">{formatDate(trip, language)}</time>
       </div>
 
       <div className="mt-5 flex items-center gap-3">
@@ -308,6 +367,10 @@ function TripCard({ trip, language }: { trip: Trip; language: Language }) {
         {trip.purpose ? <span className="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-bold text-violet-800 dark:bg-violet-950 dark:text-violet-200">{purposeLabel(trip.purpose, language)}</span> : null}
         {trip.tags.map((tag) => <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300" key={tag}>{tag}</span>)}
       </div>
+      {!trip.is_demo ? <div className="mt-5 flex flex-wrap gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
+        <button className="rounded-xl border border-teal-700 px-3 py-2 text-sm font-bold text-teal-800 transition hover:bg-teal-50 dark:text-teal-200 dark:hover:bg-teal-950" onClick={() => onEdit(trip)} type="button">{c.editJourney}</button>
+        <button className="rounded-xl border border-red-300 px-3 py-2 text-sm font-bold text-red-700 transition hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/30" onClick={() => onDelete(trip)} type="button">{c.deleteJourney}</button>
+      </div> : null}
     </article>
   );
 }
@@ -322,6 +385,8 @@ export function TripDashboard() {
   const [isSaving, setIsSaving] = useState(false);
   const [status, setStatus] = useState("");
   const [storageIssue, setStorageIssue] = useState(false);
+  const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
+  const [mapNetworkEnabled, setMapNetworkEnabled] = useState(false);
   const c = copy[language];
 
   const readTrips = useCallback((activeFilters: TripFilters) => withTimeout(Promise.all([listTrips(), listTrips(activeFilters), listCustomPlaces()])), []);
@@ -351,10 +416,11 @@ export function TripDashboard() {
     document.documentElement.lang = language === "zh" ? "zh-Hant" : "en";
   }, [language]);
 
-  const years = useMemo(() => [...new Set(allTrips.map((trip) => new Date(trip.departure).getUTCFullYear()))].sort((a, b) => b - a), [allTrips]);
+  const years = useMemo(() => [...new Set(allTrips.map((trip) => getJourneyDepartureLocalYear(trip)))].sort((a, b) => b - a), [allTrips]);
   const statistics = useMemo(() => calculateJourneyStatistics(trips), [trips]);
-  const selectedModes = filters.modes ?? (filters.mode ? [filters.mode] : []);
-  const selectedYears = filters.years ?? (filters.year ? [filters.year] : []);
+  const annualVisits = useMemo(() => calculateAnnualVisitStatistics(trips), [trips]);
+  const selectedModes = [...new Set([filters.mode, ...(filters.modes ?? [])].filter((mode): mode is TripMode => Boolean(mode)))];
+  const selectedYears = [...new Set([filters.year, ...(filters.years ?? [])].filter((year): year is number => typeof year === "number"))];
   const selectedContinents = filters.continents ?? [];
   const selectedDistanceBands = filters.distance_bands ?? [];
   const selectedPurposes = filters.purposes ?? [];
@@ -379,7 +445,7 @@ export function TripDashboard() {
     updateFilters({ ...filters, year: undefined, years: toggleSelection(selectedYears, year) });
   }
 
-  function toggleContinent(continent: Continent) {
+  function toggleContinent(continent: ContinentFilter) {
     updateFilters({ ...filters, continents: toggleSelection(selectedContinents, continent) });
   }
 
@@ -433,21 +499,90 @@ export function TripDashboard() {
     }
   }
 
-  async function handleSaveJourney(trip: Trip, newPlaces: Place[]) {
+  async function refreshAfterMutation(activeFilters = filters) {
+    const [all, filtered, savedPlaces] = await readTrips(activeFilters);
+    setAllTrips(all);
+    setTrips(filtered);
+    setCustomPlaces(savedPlaces);
+  }
+
+  async function handleSaveJourney(trip: Trip, newPlaces: Place[], operation: "create" | "update") {
     setIsSaving(true);
     try {
-      await Promise.all(newPlaces.map((place) => saveCustomPlace(place)));
-      await addTrip(trip);
+      await saveJourneyWithCustomPlaces({ trip, customPlaces: newPlaces, operation });
       const [all, filtered, savedPlaces] = await readTrips(filters);
       setAllTrips(all);
       setTrips(filtered);
       setCustomPlaces(savedPlaces);
-      setStatus(c.addJourneySuccess);
+      setEditingTrip(null);
+      const isVisible = filtered.some((item) => item.id === trip.id);
+      setStatus(operation === "update"
+        ? (isVisible ? c.updateJourneySuccess : c.addJourneyHidden)
+        : (isVisible ? c.addJourneySuccess : c.addJourneyHidden));
       setStorageIssue(false);
     } catch {
       setStorageIssue(true);
       setStatus(c.storageError);
       throw new Error("Could not save journey.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function handleEditJourney(trip: Trip) {
+    setEditingTrip(trip);
+    window.setTimeout(() => document.getElementById("add-journey-title")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  }
+
+  async function handleDeleteJourney(trip: Trip) {
+    if (!window.confirm(c.deleteJourneyConfirm)) return;
+    setIsSaving(true);
+    setIsLoading(true);
+    try {
+      await deleteTrip(trip.id);
+      await refreshAfterMutation();
+      if (editingTrip?.id === trip.id) setEditingTrip(null);
+      setStorageIssue(false);
+      setStatus(c.journeyDeleted);
+    } catch {
+      setStorageIssue(true);
+      setStatus(c.storageError);
+    } finally {
+      setIsSaving(false);
+      setIsLoading(false);
+    }
+  }
+
+  async function handleDeletePlace(place: Place) {
+    if (!window.confirm(c.deletePlaceConfirm)) return;
+    setIsSaving(true);
+    try {
+      await deleteCustomPlace(place.id);
+      await refreshAfterMutation();
+      setStorageIssue(false);
+      setStatus(c.placeDeleted);
+    } catch (error) {
+      if (error instanceof CustomPlaceInUseError || (error instanceof Error && error.name === "CustomPlaceInUseError")) {
+        setStatus(c.placeInUse);
+      } else {
+        setStorageIssue(true);
+        setStatus(c.storageError);
+      }
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handlePlaceContinent(place: Place, continent: Continent) {
+    setIsSaving(true);
+    try {
+      await updateCustomPlaceAndJourneyReferences({ ...place, continent });
+      await refreshAfterMutation();
+      setStorageIssue(false);
+      setStatus(c.placeContinentSaved);
+    } catch {
+      setStorageIssue(true);
+      setStatus(c.storageError);
     } finally {
       setIsSaving(false);
     }
@@ -464,8 +599,8 @@ export function TripDashboard() {
           </div>
           <div className="flex items-center gap-3 self-start">
             <span className="rounded-full border border-teal-200 bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-800 dark:border-teal-800 dark:bg-teal-950 dark:text-teal-200">{c.local}</span>
-            <div className="flex rounded-xl border border-slate-200 p-1 dark:border-slate-700" aria-label="Language">
-              {(["zh", "en"] as Language[]).map((item) => <button className={`rounded-lg px-2.5 py-1 text-xs font-bold ${language === item ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "text-slate-500"}`} key={item} onClick={() => setLanguage(item)} type="button">{item === "zh" ? "繁中" : "EN"}</button>)}
+            <div className="flex rounded-xl border border-slate-200 p-1 dark:border-slate-700" aria-label={c.languageLabel} role="group">
+              {(["zh", "en"] as Language[]).map((item) => <button aria-pressed={language === item} className={`rounded-lg px-2.5 py-1 text-xs font-bold ${language === item ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "text-slate-500"}`} key={item} onClick={() => setLanguage(item)} type="button">{item === "zh" ? "繁中" : "EN"}</button>)}
             </div>
           </div>
         </header>
@@ -484,9 +619,12 @@ export function TripDashboard() {
         </section>
 
         <AddJourneyForm
+          editingTrip={editingTrip}
           existingTrips={allTrips}
           isSaving={isSaving}
+          key={editingTrip?.id ?? "new-journey"}
           language={language}
+          onCancelEdit={() => setEditingTrip(null)}
           onSave={handleSaveJourney}
           places={[...REFERENCE_PLACES, ...customPlaces]}
         />
@@ -502,6 +640,19 @@ export function TripDashboard() {
           <StatsCard label={c.countries} value={String(statistics.countriesVisited)} />
         </section>
 
+        {annualVisits.length ? <section className="mt-8 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900" aria-labelledby="annual-visits-title">
+          <div className="p-5">
+            <h2 className="text-xl font-bold tracking-tight text-slate-950 dark:text-white" id="annual-visits-title">{c.annualVisits}</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-500">{c.annualVisitsHint}</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[520px] border-t border-slate-100 text-left text-sm dark:border-slate-800">
+              <thead className="bg-slate-50 text-slate-600 dark:bg-slate-950 dark:text-slate-300"><tr><th className="px-5 py-3 font-bold">{c.annualYear}</th><th className="px-5 py-3 font-bold">{c.annualContinents}</th><th className="px-5 py-3 font-bold">{c.annualCountries}</th><th className="px-5 py-3 font-bold">{c.annualCities}</th></tr></thead>
+              <tbody>{annualVisits.map((visit) => <tr className="border-t border-slate-100 dark:border-slate-800" key={visit.year}><th className="px-5 py-3 font-bold text-slate-950 dark:text-white" scope="row">{visit.year}</th><td className="px-5 py-3">{visit.continents}</td><td className="px-5 py-3">{visit.countries}</td><td className="px-5 py-3">{visit.cities}</td></tr>)}</tbody>
+            </table>
+          </div>
+        </section> : null}
+
         <section className="mt-8 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
           <div className="grid gap-4 md:grid-cols-[minmax(0,1.5fr)_auto] md:items-end">
             <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
@@ -513,7 +664,7 @@ export function TripDashboard() {
           <div className="mt-5 grid gap-5 lg:grid-cols-2">
             <FilterChipGroup getLabel={(year) => String(year)} label={c.yearLabel} onToggle={toggleYear} options={years} selected={selectedYears} />
             <FilterChipGroup getLabel={(mode) => modeLabels[language][mode]} label={c.modeLabel} onToggle={toggleMode} options={modeOrder} selected={selectedModes} />
-            <FilterChipGroup getLabel={(continent) => continentLabel(continent, language)} label={c.continentLabel} onToggle={toggleContinent} options={continents} selected={selectedContinents} />
+            <FilterChipGroup getLabel={(continent) => continentLabel(continent, language)} label={c.continentLabel} onToggle={toggleContinent} options={continentFilters} selected={selectedContinents} />
             <FilterChipGroup getLabel={(distanceBand) => distanceBandLabel(distanceBand, language)} label={c.distanceBandLabel} onToggle={toggleDistanceBand} options={journeyDistanceBands} selected={selectedDistanceBands} />
             <FilterChipGroup getLabel={(purpose) => purposeLabel(purpose, language)} label={c.purposeLabel} onToggle={togglePurpose} options={purposeFilterOrder} selected={selectedPurposes} />
           </div>
@@ -528,15 +679,41 @@ export function TripDashboard() {
             <h2 className="mt-1 text-2xl font-bold tracking-tight" id="journey-map-title">{c.mapTitle}</h2>
             <p className="mt-2 text-sm leading-6 text-slate-500">{c.mapBody}</p>
           </div>
-          <TripMap language={language} trips={trips} />
+          {mapNetworkEnabled ? <TripMap language={language} trips={trips} /> : <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <h3 className="text-lg font-bold text-slate-950 dark:text-white">{c.mapConsentTitle}</h3>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-300">{c.mapConsentBody}</p>
+            <p className="mt-2 text-xs leading-5 text-slate-500">{c.mapPrivacy}</p>
+            <button className="mt-4 rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-teal-800" onClick={() => setMapNetworkEnabled(true)} type="button">{c.mapConsentButton}</button>
+          </div>}
           {!isLoading && trips.length === 0 ? <p className="mt-3 text-sm text-slate-500">{c.mapEmpty}</p> : null}
         </section>
 
-        <section className="mt-8" aria-live="polite">
+        <section className="mt-8">
           {isLoading ? <p className="py-14 text-center text-slate-500">{c.loading}</p> : null}
           {!isLoading && allTrips.length === 0 ? <EmptyState title={c.emptyTitle} body={c.emptyBody} /> : null}
           {!isLoading && allTrips.length > 0 && trips.length === 0 ? <EmptyState title={c.noResultsTitle} body={c.noResultsBody} /> : null}
-          {!isLoading && trips.length > 0 ? <div className="grid gap-4 lg:grid-cols-2">{trips.map((trip) => <TripCard key={trip.id} language={language} trip={trip} />)}</div> : null}
+          {!isLoading && trips.length > 0 ? <div className="grid gap-4 lg:grid-cols-2">{trips.map((trip) => <TripCard key={trip.id} language={language} onDelete={(item) => void handleDeleteJourney(item)} onEdit={handleEditJourney} trip={trip} />)}</div> : null}
+        </section>
+
+        <section className="mt-8 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900" aria-labelledby="saved-places-title">
+          <h2 className="text-xl font-bold tracking-tight text-slate-950 dark:text-white" id="saved-places-title">{c.savedPlaces}</h2>
+          <p className="mt-2 text-sm leading-6 text-slate-500">{c.savedPlacesHint}</p>
+          {customPlaces.length === 0 ? <p className="mt-5 text-sm text-slate-500">{c.noSavedPlaces}</p> : <ul className="mt-5 divide-y divide-slate-100 dark:divide-slate-800">
+            {customPlaces.map((place) => <li className="flex flex-col gap-3 py-4 first:pt-0 sm:flex-row sm:items-center sm:justify-between" key={place.id}>
+              <div>
+                <p className="font-bold text-slate-900 dark:text-white">{language === "zh" ? place.name_zh : place.name_en} <span className="font-medium text-slate-500">· {place.code}</span></p>
+                <p className="mt-1 text-sm text-slate-500">{place.country} · {place.kind === "airport" ? (language === "zh" ? "機場" : "Airport") : place.kind === "station" ? (language === "zh" ? "車站" : "Station") : (language === "zh" ? "自訂地點" : "Custom place")}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="sr-only" htmlFor={`place-continent-${place.id}`}>{c.placeContinent}</label>
+                <select className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 outline-none ring-teal-500 focus:ring-2 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200" disabled={isSaving} id={`place-continent-${place.id}`} onChange={(event) => { if (event.target.value) void handlePlaceContinent(place, event.target.value as Continent); }} value={getPlaceContinent(place) ?? ""}>
+                  <option disabled value="">{c.unclassifiedContinent}</option>
+                  {continentFilters.filter((continent): continent is Continent => continent !== "unclassified").map((continent) => <option key={continent} value={continent}>{continentLabel(continent, language)}</option>)}
+                </select>
+                <button className="rounded-xl border border-red-300 px-3 py-2 text-sm font-bold text-red-700 transition hover:bg-red-50 disabled:cursor-wait disabled:opacity-60 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/30" disabled={isSaving} onClick={() => void handleDeletePlace(place)} type="button">{c.deletePlace}</button>
+              </div>
+            </li>)}
+          </ul>}
         </section>
       </div>
     </main>

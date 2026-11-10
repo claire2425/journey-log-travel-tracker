@@ -26,6 +26,8 @@ export type ManualJourneyInput = {
   vehicleType?: string;
   notes?: string;
   tags?: string[];
+  /** Preserved when an existing journey is edited. */
+  createdAt?: string;
   now?: string;
 };
 
@@ -172,7 +174,7 @@ export function buildManualTrip(input: ManualJourneyInput): Trip {
     notes: input.notes?.trim() ?? "",
     tags: (input.tags ?? []).map((tag) => tag.trim()).filter(Boolean),
     is_demo: false,
-    created_at: now,
+    created_at: input.createdAt ?? now,
     updated_at: now,
   });
 }

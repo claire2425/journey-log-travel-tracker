@@ -1,12 +1,13 @@
 import { db as defaultDb, type JourneyDatabase } from "@/db/index";
 import { saveCustomPlace } from "@/db/places";
-import { addTrip } from "@/db/trips";
+import { addTrip, updateTrip } from "@/db/trips";
 import type { Place, Trip } from "@/lib/types";
 
 export type SaveJourneyWithCustomPlacesInput = {
   trip: Trip;
   /** Newly created or updated locally saved places needed by this journey. */
   customPlaces?: readonly Place[];
+  operation?: "create" | "update";
 };
 
 /**
@@ -21,6 +22,11 @@ export async function saveJourneyWithCustomPlaces(
   return database.transaction("rw", database.custom_places, database.trips, async () => {
     for (const place of input.customPlaces ?? []) {
       await saveCustomPlace(place, database);
+    }
+
+    if (input.operation === "update") {
+      await updateTrip(input.trip, database);
+      return input.trip.id;
     }
 
     return addTrip(input.trip, database);
@@ -58,5 +64,32 @@ export async function deleteCustomPlace(
 
     await database.custom_places.delete(placeId);
     return "deleted";
+  });
+}
+
+/**
+ * Updates a saved place and every embedded journey endpoint that uses it in a
+ * single transaction. Trips intentionally store endpoint snapshots, so without
+ * this propagation an older trip would keep an outdated continent or name.
+ */
+export async function updateCustomPlaceAndJourneyReferences(
+  input: Place,
+  database: JourneyDatabase = defaultDb,
+): Promise<Place> {
+  return database.transaction("rw", database.custom_places, database.trips, async () => {
+    const place = await saveCustomPlace(input, database);
+    const affectedTrips = await database.trips
+      .filter((trip) => trip.origin.id === place.id || trip.destination.id === place.id)
+      .toArray();
+
+    if (affectedTrips.length) {
+      await database.trips.bulkPut(affectedTrips.map((trip) => ({
+        ...trip,
+        origin: trip.origin.id === place.id ? place : trip.origin,
+        destination: trip.destination.id === place.id ? place : trip.destination,
+      })));
+    }
+
+    return place;
   });
 }

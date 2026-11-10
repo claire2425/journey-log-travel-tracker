@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
 import { modeColor } from "@/lib/journey-colors";
+import { getJourneyDepartureLocalDate } from "@/lib/journey-date";
 import { createJourneyMapData, type JourneyMapData } from "@/lib/map-data";
 import type { Trip } from "@/lib/types";
 
@@ -225,7 +226,7 @@ export function TripMap({ language, trips }: TripMapProps) {
           {language === "zh" ? "框選所有足跡" : "Fit all journeys"}
         </button>
       </div>
-      <div aria-label={language === "zh" ? "旅程地圖" : "Journey map"} className="h-[420px] w-full sm:h-[520px]" ref={containerRef} />
+      <div aria-label={language === "zh" ? "旅程地圖；下方有可用鍵盤瀏覽的旅程清單" : "Journey map; a keyboard-accessible journey list follows"} className="h-[420px] w-full sm:h-[520px]" ref={containerRef} role="region" tabIndex={0} />
       <div className="space-y-2 px-5 py-3 text-xs font-medium text-slate-500">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <span className="font-bold text-slate-700 dark:text-slate-200">{language === "zh" ? "路線／交通方式" : "Routes / transport"}</span>
@@ -241,7 +242,13 @@ export function TripMap({ language, trips }: TripMapProps) {
           {mapData.countryLegend.map((entry) => <span className="flex items-center gap-2" key={entry.country}><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: entry.color }} />{countryLabel(entry.country, language)}</span>)}
         </div> : null}
       </div>
-      <p className="border-t border-slate-100 px-5 py-3 text-xs leading-5 text-slate-500 dark:border-slate-800">{language === "zh" ? "地圖底圖來自 OpenStreetMap；旅程資料仍只保留在這個瀏覽器，並不會上傳。" : "Basemap © OpenStreetMap contributors. Your journey records stay in this browser and are not uploaded."}</p>
+      <details className="border-t border-slate-100 px-5 py-3 text-sm text-slate-600 dark:border-slate-800 dark:text-slate-300">
+        <summary className="cursor-pointer font-bold text-slate-800 dark:text-slate-100">{language === "zh" ? "以清單瀏覽目前地圖中的旅程" : "Browse journeys shown on this map as a list"}</summary>
+        {trips.length ? <ul className="mt-3 space-y-2 leading-6">
+          {trips.map((trip) => <li key={trip.id}>{getJourneyDepartureLocalDate(trip)} · {language === "zh" ? { flight: "飛行", rail: "火車／高鐵", cruise: "郵輪", other: "其他" }[trip.mode] : { flight: "Flight", rail: "Rail / high-speed rail", cruise: "Cruise", other: "Other" }[trip.mode]} · {language === "zh" ? trip.origin.name_zh : trip.origin.name_en} → {language === "zh" ? trip.destination.name_zh : trip.destination.name_en}</li>)}
+        </ul> : <p className="mt-3">{language === "zh" ? "目前沒有可顯示的旅程。" : "There are no journeys to show."}</p>}
+      </details>
+      <p className="border-t border-slate-100 px-5 py-3 text-xs leading-5 text-slate-500 dark:border-slate-800">{language === "zh" ? "地圖底圖來自 OpenStreetMap；載入後該服務會收到圖磚請求（例如 IP 位址和檢視範圍），但 Journey Log 不會上傳旅程資料。" : "The basemap comes from OpenStreetMap. Once loaded, it receives tile requests (such as your IP address and viewport), while Journey Log does not upload your journey records."}</p>
     </div>
   );
 }

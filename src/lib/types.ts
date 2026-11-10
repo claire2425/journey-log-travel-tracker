@@ -3,6 +3,8 @@ import { z } from "zod";
 export const placeKinds = ["airport", "station", "custom"] as const;
 export const tripModes = ["flight", "rail", "cruise", "other"] as const;
 export const continents = ["africa", "antarctica", "asia", "europe", "north_america", "oceania", "south_america"] as const;
+/** A filter may deliberately include records whose endpoint continent is not known. */
+export const continentFilters = [...continents, "unclassified"] as const;
 export const tripPurposes = ["leisure", "business", "personal", "other"] as const;
 export const tripPurposeFilters = [...tripPurposes, "unclassified"] as const;
 export const journeyDistanceBands = ["short", "medium", "long"] as const;
@@ -142,6 +144,12 @@ export const PlaceSchema = z.object({
   latitude: z.number().gte(-90).lte(90),
   longitude: z.number().gte(-180).lte(180),
   country: z.string().min(1),
+  // Some endpoints are airports or stations rather than cities. When absent,
+  // yearly city counts transparently fall back to the endpoint name.
+  city: z.preprocess(
+    (value) => typeof value === "string" ? value.trim() || undefined : value,
+    z.string().min(1).max(120).optional(),
+  ),
   time_zone: z.string().min(1),
   // Optional so saved places from earlier versions remain valid. Where it is
   // absent, journey filtering uses the small country fallback in geography.ts.
@@ -186,6 +194,7 @@ export type Place = z.infer<typeof PlaceSchema>;
 export type Trip = z.infer<typeof TripSchema>;
 export type TripMode = Trip["mode"];
 export type Continent = (typeof continents)[number];
+export type ContinentFilter = (typeof continentFilters)[number];
 export type TripPurpose = (typeof tripPurposes)[number];
 export type TripPurposeFilter = (typeof tripPurposeFilters)[number];
 export type DistanceBand = (typeof journeyDistanceBands)[number];
