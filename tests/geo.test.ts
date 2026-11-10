@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { interpolateGreatCircle } from "@/lib/geo";
+import { greatCircleDistanceKm, interpolateGreatCircle } from "@/lib/geo";
 
 describe("great-circle interpolation", () => {
   it("keeps the supplied endpoints and creates intermediate points", () => {
@@ -9,5 +9,15 @@ describe("great-circle interpolation", () => {
     expect(points[0]).toEqual([121.2342, 25.0797]);
     expect(points.at(-1)).toEqual([135.244, 34.4347]);
     expect(points[4]?.[1]).toBeGreaterThan(25.0797);
+  });
+});
+
+describe("great-circle distance", () => {
+  it("returns zero for identical locations", () => {
+    expect(greatCircleDistanceKm([121.2342, 25.0797], [121.2342, 25.0797])).toBe(0);
+  });
+
+  it("uses a great-circle calculation", () => {
+    expect(greatCircleDistanceKm([0, 0], [1, 0])).toBeCloseTo(111.195, 3);
   });
 });

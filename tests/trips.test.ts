@@ -47,6 +47,20 @@ describe("trip repository", () => {
     expect((await listTrips({ search: "london" }, database))[0]?.id).toBe("trip-1");
   });
 
+  it("normalizes an optional carrier code and accepts only http(s) logo URLs", async () => {
+    await addTrip(trip({
+      carrier_code: " br ",
+      carrier_logo_url: " https://example.test/eva-air.svg ",
+    }), database);
+
+    expect(await getTrip("trip-1", database)).toMatchObject({
+      carrier_code: "BR",
+      carrier_logo_url: "https://example.test/eva-air.svg",
+    });
+    expect(() => TripSchema.parse(trip({ carrier_code: "not a code" }))).toThrow();
+    expect(() => TripSchema.parse(trip({ carrier_logo_url: "ftp://example.test/logo.svg" }))).toThrow();
+  });
+
   it("normalizes legacy high-speed rail records and preserves their details during the database upgrade", async () => {
     const legacyDatabaseName = `legacy-${crypto.randomUUID()}`;
     const legacyDatabase = new Dexie(legacyDatabaseName);

@@ -10,6 +10,24 @@ const TripModeSchema = z.preprocess(
 
 const CurrencyCodeSchema = z.string().trim().regex(/^[A-Z]{3}$/, "Use a three-letter currency code.");
 const DateOnlySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+export const CarrierCodeSchema = z.preprocess(
+  (value) => typeof value === "string" ? value.trim().toUpperCase() || undefined : value,
+  z.string()
+    .regex(/^[A-Z0-9](?:[A-Z0-9-]{0,14}[A-Z0-9])?$/, "Use a concise uppercase operator code.")
+    .optional(),
+);
+
+export const CarrierLogoUrlSchema = z.preprocess(
+  (value) => typeof value === "string" ? value.trim() || undefined : value,
+  z.string().url().refine((value) => {
+    try {
+      const url = new URL(value);
+      return url.protocol === "https:" || url.protocol === "http:";
+    } catch {
+      return false;
+    }
+  }, "Use an http(s) logo URL.").optional(),
+);
 const DecimalRateSchema = z.string().trim().max(80).refine(
   (value) => {
     if (!/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(value)) return false;
@@ -131,6 +149,8 @@ export const TripSchema = z.object({
   departure: z.string().datetime({ offset: true }),
   arrival: z.string().datetime({ offset: true }),
   carrier: z.string().trim(),
+  carrier_code: CarrierCodeSchema,
+  carrier_logo_url: CarrierLogoUrlSchema,
   service_number: z.string().trim(),
   seat_class: z.string().trim(),
   seat: z.string().trim(),

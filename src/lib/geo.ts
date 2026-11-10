@@ -2,9 +2,28 @@ export type Coordinate = [longitude: number, latitude: number];
 
 const degreesToRadians = (value: number) => (value * Math.PI) / 180;
 const radiansToDegrees = (value: number) => (value * 180) / Math.PI;
+const MEAN_EARTH_RADIUS_KM = 6371.0088;
 
 function normaliseLongitude(value: number) {
   return ((value + 540) % 360) - 180;
+}
+
+/**
+ * Calculates an approximate great-circle distance using the mean Earth radius.
+ * It is suitable for a personal travel log, not route planning or navigation.
+ */
+export function greatCircleDistanceKm(origin: Coordinate, destination: Coordinate): number {
+  const [originLongitude, originLatitude] = origin;
+  const [destinationLongitude, destinationLatitude] = destination;
+  const latitudeDelta = degreesToRadians(destinationLatitude - originLatitude);
+  const longitudeDelta = degreesToRadians(destinationLongitude - originLongitude);
+  const originLatitudeRadians = degreesToRadians(originLatitude);
+  const destinationLatitudeRadians = degreesToRadians(destinationLatitude);
+  const haversine = Math.sin(latitudeDelta / 2) ** 2
+    + Math.cos(originLatitudeRadians) * Math.cos(destinationLatitudeRadians) * Math.sin(longitudeDelta / 2) ** 2;
+  const centralAngle = 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+
+  return MEAN_EARTH_RADIUS_KM * centralAngle;
 }
 
 /**

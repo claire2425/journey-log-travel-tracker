@@ -8,14 +8,22 @@ export type TripFilters = {
   search?: string;
 };
 
+function normalizeTrip(input: Trip): Trip {
+  return TripSchema.parse({
+    ...input,
+    carrier_code: input.carrier_code?.trim().toUpperCase(),
+    carrier_logo_url: input.carrier_logo_url?.trim(),
+  });
+}
+
 export async function addTrip(input: Trip, database: JourneyDatabase = defaultDb): Promise<string> {
-  const trip = TripSchema.parse(input);
+  const trip = normalizeTrip(input);
   await database.trips.add(trip);
   return trip.id;
 }
 
 export async function updateTrip(input: Trip, database: JourneyDatabase = defaultDb): Promise<void> {
-  const trip = TripSchema.parse(input);
+  const trip = normalizeTrip(input);
   const count = await database.trips.update(trip.id, trip);
   if (count === 0) throw new Error(`Trip not found: ${trip.id}`);
 }
@@ -26,17 +34,17 @@ export async function deleteTrip(id: string, database: JourneyDatabase = default
 
 export async function getTrip(id: string, database: JourneyDatabase = defaultDb): Promise<Trip | undefined> {
   const trip = await database.trips.get(id);
-  return trip ? TripSchema.parse(trip) : undefined;
+  return trip ? normalizeTrip(trip) : undefined;
 }
 
 export async function listTrips(filters: TripFilters = {}, database: JourneyDatabase = defaultDb): Promise<Trip[]> {
-  const trips = (await database.trips.orderBy("departure").reverse().toArray()).map((trip) => TripSchema.parse(trip));
+  const trips = (await database.trips.orderBy("departure").reverse().toArray()).map((trip) => normalizeTrip(trip));
   const needle = filters.search?.trim().toLocaleLowerCase();
   return trips.filter((trip) => {
     if (filters.mode && trip.mode !== filters.mode) return false;
     if (filters.year && new Date(trip.departure).getUTCFullYear() !== filters.year) return false;
     if (!needle) return true;
-    return [trip.origin.code, trip.origin.name_zh, trip.origin.name_en, trip.destination.code, trip.destination.name_zh, trip.destination.name_en, trip.carrier, trip.service_number, ...trip.tags]
+    return [trip.origin.code, trip.origin.name_zh, trip.origin.name_en, trip.destination.code, trip.destination.name_zh, trip.destination.name_en, trip.carrier, trip.carrier_code ?? "", trip.service_number, ...trip.tags]
       .join(" ").toLocaleLowerCase().includes(needle);
   });
 }
@@ -46,7 +54,7 @@ export async function clearDemoTrips(database: JourneyDatabase = defaultDb): Pro
 }
 
 export async function loadDemoTrips(database: JourneyDatabase = defaultDb): Promise<number> {
-  const trips = getDemoTrips().map((trip) => TripSchema.parse(trip));
+  const trips = getDemoTrips().map((trip) => normalizeTrip(trip));
   await database.trips.bulkPut(trips);
   return trips.length;
 }

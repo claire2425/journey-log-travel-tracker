@@ -24,6 +24,12 @@ const places = {
   gareDuNord: { id: "gare-du-nord", name_zh: "巴黎北站", name_en: "Paris Gare du Nord", code: "PGN", kind: "station", latitude: 48.8809, longitude: 2.3553, country: "France", time_zone: "Europe/Paris" },
 } satisfies Record<string, Place>;
 
+/**
+ * A small, bundled place list for the add-journey form. These are display-only
+ * reference locations; users may save their own places locally as needed.
+ */
+export const REFERENCE_PLACES: Place[] = Object.values(places).map((place) => ({ ...place }));
+
 function demoTrip(input: Omit<Trip, "is_demo" | "created_at" | "updated_at">): Trip {
   return {
     ...input,

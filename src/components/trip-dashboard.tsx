@@ -1,12 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AddJourneyForm } from "@/components/add-journey-form";
 import { AppNavigation } from "@/components/app-navigation";
 import { TripMap } from "@/components/trip-map";
-import { clearDemoTrips, listTrips, loadDemoTrips, type TripFilters } from "@/db/trips";
+import { listCustomPlaces, saveCustomPlace } from "@/db/places";
+import { addTrip, clearDemoTrips, listTrips, loadDemoTrips, type TripFilters } from "@/db/trips";
+import { REFERENCE_PLACES } from "@/lib/demo-trips";
 import { modeColor } from "@/lib/journey-colors";
+import { lookupOperator } from "@/lib/operator-directory";
 import { calculateJourneyStatistics, earthLapsForDistance } from "@/lib/statistics";
-import type { Trip, TripMode } from "@/lib/types";
+import type { Place, Trip, TripMode } from "@/lib/types";
 
 type Language = "zh" | "en";
 
@@ -17,6 +21,7 @@ const copy = {
     subtitle: "私密、以裝置為先的飛行、火車／高鐵與郵輪旅程紀錄。資料只儲存在這個瀏覽器。",
     sample: "載入示範旅程",
     clear: "清除示範資料",
+    addJourneySuccess: "已儲存你的旅程。",
     loading: "正在讀取旅程⋯",
     searchLabel: "搜尋旅程",
     searchPlaceholder: "城市、代碼、航空公司或標籤",
@@ -30,7 +35,7 @@ const copy = {
     duration: "旅途時間",
     countries: "到訪國家／地區",
     emptyTitle: "還沒有旅程",
-    emptyBody: "先載入示範資料，看看 Journey Log 將如何整理你的移動軌跡。",
+    emptyBody: "使用上方的新增旅程表單，或載入示範資料來看看 Journey Log 如何整理你的移動軌跡。",
     noResultsTitle: "沒有符合的旅程",
     noResultsBody: "調整搜尋字詞或篩選條件後再試一次。",
     sampleNote: "示範旅程皆為虛構；地點座標為公開、近似的位置資訊，僅供展示使用。",
@@ -52,6 +57,7 @@ const copy = {
     subtitle: "Private, local-first records for flights, rail journeys including high-speed rail, and cruises. Your data stays in this browser.",
     sample: "Load sample journeys",
     clear: "Clear sample data",
+    addJourneySuccess: "Your journey has been saved.",
     loading: "Loading journeys…",
     searchLabel: "Search journeys",
     searchPlaceholder: "City, code, carrier, or tag",
@@ -65,7 +71,7 @@ const copy = {
     duration: "Travel time",
     countries: "Countries / regions",
     emptyTitle: "No journeys yet",
-    emptyBody: "Load the sample journeys to see how Journey Log can organise your travel story.",
+    emptyBody: "Use the add-journey form above, or load sample journeys to see how Journey Log can organise your travel story.",
     noResultsTitle: "No matching journeys",
     noResultsBody: "Try changing the search or filters.",
     sampleNote: "All sample journeys are fictional. Place coordinates are public, approximate display data only.",
@@ -167,6 +173,20 @@ function StatsCard({ label, value, detail }: { label: string; value: string; det
   );
 }
 
+function CarrierMark({ trip }: { trip: Trip }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const operator = (trip.mode === "flight" || trip.mode === "rail") ? lookupOperator(trip.carrier_code ?? "", trip.mode) : undefined;
+  const text = operator?.logo_text ?? trip.carrier_code ?? (trip.carrier.slice(0, 4).toUpperCase() || "—");
+
+  if (trip.carrier_logo_url && !imageFailed) {
+    // The provider owns this optional URL, so a static Next.js remote-host allowlist is unsuitable here.
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img alt="" className="h-10 w-10 rounded-xl border border-slate-200 bg-white object-contain p-1 dark:border-slate-700" onError={() => setImageFailed(true)} src={trip.carrier_logo_url} />;
+  }
+
+  return <span aria-hidden="true" className="inline-flex h-10 min-w-10 items-center justify-center rounded-xl px-2 text-xs font-black tracking-wide text-white" style={{ backgroundColor: operator?.brand_color ?? "#475569" }}>{text}</span>;
+}
+
 function TripCard({ trip, language }: { trip: Trip; language: Language }) {
   const c = copy[language];
   const transportColor = modeColor(trip.mode);
@@ -199,7 +219,7 @@ function TripCard({ trip, language }: { trip: Trip; language: Language }) {
       </div>
 
       <div className="mt-5 grid grid-cols-3 gap-3 border-t border-slate-100 pt-4 text-sm dark:border-slate-800">
-        <div><p className="text-slate-500">{trip.carrier}</p><p className="mt-1 font-semibold text-slate-800 dark:text-slate-200">{trip.service_number}</p></div>
+        <div className="flex min-w-0 gap-2"><CarrierMark trip={trip} /><div className="min-w-0"><p className="truncate text-slate-500">{trip.carrier || "—"}</p><p className="mt-1 truncate font-semibold text-slate-800 dark:text-slate-200">{trip.service_number || "—"}</p></div></div>
         <div><p className="text-slate-500">{language === "zh" ? "距離" : "Distance"}</p><p className="mt-1 font-semibold text-slate-800 dark:text-slate-200">{number} km</p></div>
         <div><p className="text-slate-500">{language === "zh" ? "時間" : "Time"}</p><p className="mt-1 font-semibold text-slate-800 dark:text-slate-200">{formatDuration(trip.duration_min, language)}</p></div>
       </div>
@@ -214,21 +234,23 @@ export function TripDashboard() {
   const [filters, setFilters] = useState<TripFilters>({});
   const [trips, setTrips] = useState<Trip[]>([]);
   const [allTrips, setAllTrips] = useState<Trip[]>([]);
+  const [customPlaces, setCustomPlaces] = useState<Place[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [status, setStatus] = useState("");
   const [storageIssue, setStorageIssue] = useState(false);
   const c = copy[language];
 
-  const readTrips = useCallback((activeFilters: TripFilters) => withTimeout(Promise.all([listTrips(), listTrips(activeFilters)])), []);
+  const readTrips = useCallback((activeFilters: TripFilters) => withTimeout(Promise.all([listTrips(), listTrips(activeFilters), listCustomPlaces()])), []);
 
   useEffect(() => {
     let cancelled = false;
 
-    void readTrips(filters).then(([all, filtered]) => {
+    void readTrips(filters).then(([all, filtered, savedPlaces]) => {
       if (cancelled) return;
       setAllTrips(all);
       setTrips(filtered);
+      setCustomPlaces(savedPlaces);
       setIsLoading(false);
       setStorageIssue(false);
     }).catch(() => {
@@ -263,9 +285,10 @@ export function TripDashboard() {
     setFilters(nextFilters);
     try {
       await loadDemoTrips();
-      const [all, filtered] = await readTrips(nextFilters);
+      const [all, filtered, savedPlaces] = await readTrips(nextFilters);
       setAllTrips(all);
       setTrips(filtered);
+      setCustomPlaces(savedPlaces);
       setStorageIssue(false);
       setStatus(c.loadSuccess);
     } catch {
@@ -282,9 +305,10 @@ export function TripDashboard() {
     setIsLoading(true);
     try {
       await clearDemoTrips();
-      const [all, filtered] = await readTrips(filters);
+      const [all, filtered, savedPlaces] = await readTrips(filters);
       setAllTrips(all);
       setTrips(filtered);
+      setCustomPlaces(savedPlaces);
       setStorageIssue(false);
       setStatus(c.clearSuccess);
     } catch {
@@ -292,6 +316,26 @@ export function TripDashboard() {
       setStatus(c.storageError);
     } finally {
       setIsLoading(false);
+      setIsSaving(false);
+    }
+  }
+
+  async function handleSaveJourney(trip: Trip, newPlaces: Place[]) {
+    setIsSaving(true);
+    try {
+      await Promise.all(newPlaces.map((place) => saveCustomPlace(place)));
+      await addTrip(trip);
+      const [all, filtered, savedPlaces] = await readTrips(filters);
+      setAllTrips(all);
+      setTrips(filtered);
+      setCustomPlaces(savedPlaces);
+      setStatus(c.addJourneySuccess);
+      setStorageIssue(false);
+    } catch {
+      setStorageIssue(true);
+      setStatus(c.storageError);
+      throw new Error("Could not save journey.");
+    } finally {
       setIsSaving(false);
     }
   }
@@ -325,6 +369,14 @@ export function TripDashboard() {
             {hasDemoTrips ? <button className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-bold text-white transition hover:border-slate-400 disabled:cursor-wait disabled:opacity-60" disabled={isSaving} onClick={() => void handleClearSample()} type="button">{c.clear}</button> : null}
           </div>
         </section>
+
+        <AddJourneyForm
+          existingTrips={allTrips}
+          isSaving={isSaving}
+          language={language}
+          onSave={handleSaveJourney}
+          places={[...REFERENCE_PLACES, ...customPlaces]}
+        />
 
         <section className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label={c.visible}>
           <StatsCard label={c.journeys} value={String(statistics.totalTrips)} />
