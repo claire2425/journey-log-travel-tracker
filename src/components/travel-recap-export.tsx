@@ -4,12 +4,13 @@ import { useState } from "react";
 import { modeColor } from "@/lib/journey-colors";
 import { downloadTravelRecapPng, type ReportLanguage } from "@/lib/report-png";
 import type { TravelRecap } from "@/lib/travel-recap";
+import type { Trip } from "@/lib/types";
 
 const labels = {
   zh: {
     eyebrow: "PNG REPORT",
     title: "下載旅行分析圖片",
-    body: "以目前搜尋與篩選後的旅程製作一張易讀摘要，包含距離、交通方式與年度足跡。圖片只會在這個瀏覽器產生。",
+    body: "以目前搜尋與篩選後的旅程製作一張易讀摘要，包含繪製版世界足跡地圖、距離、交通方式與年度足跡。圖片只會在這個瀏覽器產生。",
     scope: "目前篩選結果",
     journeys: "趟旅程",
     download: "下載 PNG",
@@ -22,7 +23,7 @@ const labels = {
   en: {
     eyebrow: "PNG REPORT",
     title: "Download travel analysis",
-    body: "Create a readable snapshot of the journeys in the current search and filters, including distance, travel modes, and yearly footprint. The image is made in this browser only.",
+    body: "Create a readable snapshot of the journeys in the current search and filters, including a drawn world footprint map, distance, travel modes, and yearly footprint. The image is made in this browser only.",
     scope: "Current results",
     journeys: "journeys",
     download: "Download PNG",
@@ -39,7 +40,7 @@ const modeLabels: Record<ReportLanguage, Record<TravelRecap["modes"][number]["mo
   en: { flight: "Flight", rail: "Rail / high-speed rail", cruise: "Cruise", other: "Other" },
 };
 
-export function TravelRecapExport({ language, recap }: { language: ReportLanguage; recap: TravelRecap }) {
+export function TravelRecapExport({ language, recap, trips }: { language: ReportLanguage; recap: TravelRecap; trips: Trip[] }) {
   const [isDownloading, setIsDownloading] = useState(false);
   const [message, setMessage] = useState("");
   const c = labels[language];
@@ -52,7 +53,7 @@ export function TravelRecapExport({ language, recap }: { language: ReportLanguag
     setIsDownloading(true);
     setMessage("");
     try {
-      await downloadTravelRecapPng(recap, language);
+      await downloadTravelRecapPng(recap, trips, language);
       setMessage(c.done);
     } catch {
       setMessage(c.failed);

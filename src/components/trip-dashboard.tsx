@@ -683,7 +683,7 @@ export function TripDashboard() {
           <StatsCard label={c.countries} value={String(statistics.countriesVisited)} />
         </section>
 
-        <TravelRecapExport language={language} recap={travelRecap} />
+        <TravelRecapExport language={language} recap={travelRecap} trips={trips} />
 
         {annualVisits.length ? <section className="mt-8 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900" aria-labelledby="annual-visits-title">
           <div className="p-5">

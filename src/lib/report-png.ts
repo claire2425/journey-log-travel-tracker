@@ -1,9 +1,16 @@
 import { modeColor } from "@/lib/journey-colors";
 import { formatMoneyFromMinorUnits } from "@/lib/money";
 import { downloadCanvasPng } from "@/lib/png-export";
+import {
+  SCHEMATIC_WORLD_LANDMASSES,
+  createSchematicJourneyMap,
+  projectSchematicWorldCoordinate,
+  type SchematicJourneyMap,
+  type SchematicMapFrame,
+} from "@/lib/recap-map";
 import type { ExpenseStatistics } from "@/lib/expense-statistics";
 import type { TravelRecap } from "@/lib/travel-recap";
-import type { TripMode } from "@/lib/types";
+import type { Trip, TripMode } from "@/lib/types";
 
 export type ReportLanguage = "zh" | "en";
 
@@ -73,6 +80,10 @@ function fitText(context: CanvasRenderingContext2D, value: string, width: number
   return `${output}${ellipsis}`;
 }
 
+function clamp(value: number, minimum: number, maximum: number) {
+  return Math.max(minimum, Math.min(maximum, value));
+}
+
 function number(value: number, language: ReportLanguage, digits = 0) {
   return new Intl.NumberFormat(locale(language), { maximumFractionDigits: digits, minimumFractionDigits: 0 }).format(value);
 }
@@ -111,12 +122,199 @@ function drawSectionTitle(context: CanvasRenderingContext2D, label: string, titl
   text(context, title, x, y + 38, { size: 30, weight: 800 });
 }
 
-export async function downloadTravelRecapPng(recap: TravelRecap, language: ReportLanguage) {
+function drawCoordinatePath(context: CanvasRenderingContext2D, coordinates: Array<[number, number]>, frame: SchematicMapFrame, close = false) {
+  const first = coordinates[0];
+  if (!first) return;
+  const projected = projectSchematicWorldCoordinate(first, frame);
+  context.beginPath();
+  context.moveTo(projected.x, projected.y);
+  for (const coordinate of coordinates.slice(1)) {
+    const point = projectSchematicWorldCoordinate(coordinate, frame);
+    context.lineTo(point.x, point.y);
+  }
+  if (close) context.closePath();
+}
+
+function drawSchematicFootprintMap(context: CanvasRenderingContext2D, map: SchematicJourneyMap, language: ReportLanguage, x: number, y: number, width: number, height: number) {
+  const labels = language === "zh" ? {
+    title: "你的世界足跡（繪製版）",
+    routes: "路線顏色",
+    stops: "地點顏色",
+    returnLine: "粗線＝來回",
+    noRoutes: "目前沒有可繪製的路線。",
+    note: "本機繪製的世界示意，不使用外部地圖圖磚；僅供視覺回顧，非導航用途。",
+    remainingCountries: "個其他國家／地區",
+  } : {
+    title: "Your world footprint (drawn)",
+    routes: "Route colours",
+    stops: "Place colours",
+    returnLine: "Thicker line = return",
+    noRoutes: "There are no routes to draw yet.",
+    note: "A locally drawn world sketch with no external map tiles; for visual reflection, not navigation.",
+    remainingCountries: "more countries / regions",
+  };
+  const frame: SchematicMapFrame = { x: x + 32, y: y + 116, width: width - 64, height: 314 };
+  const frameRadius = 22;
+
+  fillCard(context, x, y, width, height);
+  drawSectionTitle(context, "FOOTPRINT MAP", labels.title, x + 32, y + 43);
+
+  context.fillStyle = "#edf6fb";
+  roundedRect(context, frame.x, frame.y, frame.width, frame.height, frameRadius);
+  context.fill();
+
+  context.save();
+  roundedRect(context, frame.x, frame.y, frame.width, frame.height, frameRadius);
+  context.clip();
+
+  context.strokeStyle = "#d6e6f0";
+  context.lineWidth = 1;
+  for (let longitude = -120; longitude <= 120; longitude += 60) {
+    const start = projectSchematicWorldCoordinate([longitude, -85], frame);
+    const end = projectSchematicWorldCoordinate([longitude, 85], frame);
+    context.beginPath();
+    context.moveTo(start.x, start.y);
+    context.lineTo(end.x, end.y);
+    context.stroke();
+  }
+  for (let latitude = -60; latitude <= 60; latitude += 30) {
+    const start = projectSchematicWorldCoordinate([-180, latitude], frame);
+    const end = projectSchematicWorldCoordinate([180, latitude], frame);
+    context.beginPath();
+    context.moveTo(start.x, start.y);
+    context.lineTo(end.x, end.y);
+    context.stroke();
+  }
+
+  context.fillStyle = "#dde9d7";
+  context.strokeStyle = "#bdd0bb";
+  context.lineWidth = 1.1;
+  for (const landmass of SCHEMATIC_WORLD_LANDMASSES) {
+    drawCoordinatePath(context, landmass, frame, true);
+    context.fill();
+    context.stroke();
+  }
+
+  for (const route of map.routes) {
+    const routeWidth = route.route_pattern === "paired_return" ? 4.5 : 2.6;
+    for (const path of route.paths) {
+      drawCoordinatePath(context, path, frame);
+      context.lineCap = "round";
+      context.lineJoin = "round";
+      context.strokeStyle = "rgba(255, 255, 255, 0.92)";
+      context.lineWidth = routeWidth + 3.3;
+      context.stroke();
+      drawCoordinatePath(context, path, frame);
+      context.strokeStyle = modeColor(route.mode);
+      context.lineWidth = routeWidth;
+      context.stroke();
+    }
+  }
+
+  context.restore();
+
+  const mapStopPoint = (coordinate: [number, number]) => {
+    const point = projectSchematicWorldCoordinate(coordinate, frame);
+    // Keep edge stops legible instead of clipping their marker or code at the
+    // international date line and map border.
+    return {
+      x: clamp(point.x, frame.x + 12, frame.x + frame.width - 12),
+      y: clamp(point.y, frame.y + 12, frame.y + frame.height - 12),
+    };
+  };
+
+  for (const stop of map.stops) {
+    const point = mapStopPoint(stop.coordinate);
+    const radius = 4.5 + Math.min(stop.visits, 4) * 0.8;
+    context.beginPath();
+    context.arc(point.x, point.y, radius + 2.4, 0, Math.PI * 2);
+    context.fillStyle = "rgba(255, 255, 255, 0.96)";
+    context.fill();
+    context.beginPath();
+    context.arc(point.x, point.y, radius, 0, Math.PI * 2);
+    context.fillStyle = stop.country_color;
+    context.fill();
+  }
+
+  if (map.stops.length <= 12) {
+    context.textAlign = "center";
+    context.textBaseline = "top";
+    font(context, 13, 800);
+    for (const stop of map.stops) {
+      if (!stop.code) continue;
+      const point = mapStopPoint(stop.coordinate);
+      context.fillStyle = ink;
+      context.fillText(stop.code, point.x, point.y + 11);
+    }
+  }
+
+  context.strokeStyle = "#c9ddea";
+  context.lineWidth = 1;
+  roundedRect(context, frame.x, frame.y, frame.width, frame.height, frameRadius);
+  context.stroke();
+
+  const modes = (["flight", "rail", "cruise", "other"] as TripMode[]).filter((mode) => map.routes.some((route) => route.mode === mode));
+  const routesY = y + 472;
+  text(context, labels.routes, x + 32, routesY, { color: muted, size: 15, weight: 800 });
+  let legendX = x + 132;
+  for (const mode of modes) {
+    context.lineCap = "round";
+    context.strokeStyle = "rgba(255, 255, 255, 0.96)";
+    context.lineWidth = 7;
+    context.beginPath();
+    context.moveTo(legendX, routesY - 5);
+    context.lineTo(legendX + 26, routesY - 5);
+    context.stroke();
+    context.strokeStyle = modeColor(mode);
+    context.lineWidth = 3;
+    context.beginPath();
+    context.moveTo(legendX, routesY - 5);
+    context.lineTo(legendX + 26, routesY - 5);
+    context.stroke();
+    text(context, modeLabel(mode, language), legendX + 38, routesY, { color: ink, size: 15, weight: 700 });
+    font(context, 15, 700);
+    legendX += 50 + context.measureText(modeLabel(mode, language)).width;
+  }
+  text(context, labels.returnLine, x + width - 32, routesY, { color: muted, size: 15, weight: 800, align: "right" });
+
+  const stopsY = y + 510;
+  text(context, labels.stops, x + 32, stopsY, { color: muted, size: 15, weight: 800 });
+  let countryX = x + 132;
+  for (const entry of map.country_legend.slice(0, 5)) {
+    context.beginPath();
+    context.arc(countryX + 5, stopsY - 5, 5, 0, Math.PI * 2);
+    context.fillStyle = entry.color;
+    context.fill();
+    font(context, 15, 700);
+    const country = fitText(context, entry.country, 140);
+    text(context, country, countryX + 16, stopsY, { color: ink, size: 15, weight: 700 });
+    countryX += 28 + context.measureText(country).width;
+  }
+  const remainingCountryCount = Math.max(0, map.country_legend.length - 5);
+  if (remainingCountryCount) {
+    const remainingX = countryX + 8;
+    const remainingWidth = x + width - 32 - remainingX;
+    if (remainingWidth > 0) {
+      font(context, 15, 700);
+      const remaining = fitText(context, `+${remainingCountryCount} ${labels.remainingCountries}`, remainingWidth);
+      text(context, remaining, remainingX, stopsY, { color: muted, size: 15, weight: 700 });
+    }
+  }
+  if (!map.routes.length) text(context, labels.noRoutes, x + width - 32, stopsY, { color: muted, size: 16, weight: 700, align: "right" });
+  text(context, labels.note, x + 32, y + height - 22, { color: muted, size: 14, weight: 500 });
+}
+
+export async function downloadTravelRecapPng(recap: TravelRecap, trips: Trip[], language: ReportLanguage) {
   const annual = recap.annual_visits.slice(0, 6);
   const recent = recap.recent_journeys.slice(0, 5);
   const annualHeight = 122 + Math.max(annual.length, 1) * 52;
   const recentHeight = 112 + Math.max(recent.length, 1) * 56;
-  const height = 790 + annualHeight + recentHeight + 120;
+  const mapHeight = 558;
+  const modeY = 468 + mapHeight + 32;
+  const annualY = modeY + 252 + 48;
+  const recentY = annualY + annualHeight + 32;
+  const height = recentY + recentHeight + 120;
+  const map = createSchematicJourneyMap(trips);
   const labels = language === "zh" ? {
     title: "旅行分析", subtitle: `依目前篩選的 ${number(recap.total_journeys, language)} 趟旅程`, generated: "本機產生的 PNG 報告",
     journeys: "旅程", distance: "總距離", laps: "繞地球", countries: "到訪國家／地區", duration: "旅途時間",
@@ -143,7 +341,8 @@ export async function downloadTravelRecapPng(recap: TravelRecap, language: Repor
       drawMetric(context, 80 + (cardWidth + 24) * 2, metricsY, cardWidth, labels.laps, `${number(recap.earth_laps, language, 2)}×`);
       drawMetric(context, 80 + (cardWidth + 24) * 3, metricsY, cardWidth, labels.countries, number(recap.statistics.countriesVisited, language));
 
-      const modeY = 468;
+      drawSchematicFootprintMap(context, map, language, 80, 468, width - 160, mapHeight);
+
       fillCard(context, 80, modeY, width - 160, 252);
       drawSectionTitle(context, labels.modes, labels.modesTitle, 112, modeY + 43);
       const shownModes = recap.modes.filter((entry) => entry.distance_km > 0);
@@ -166,7 +365,6 @@ export async function downloadTravelRecapPng(recap: TravelRecap, language: Repor
         });
       }
 
-      const annualY = 768;
       fillCard(context, 80, annualY, width - 160, annualHeight);
       drawSectionTitle(context, labels.years, labels.yearsTitle, 112, annualY + 43);
       const annualScope = language === "zh"
@@ -187,7 +385,6 @@ export async function downloadTravelRecapPng(recap: TravelRecap, language: Repor
         });
       }
 
-      const recentY = annualY + annualHeight + 32;
       fillCard(context, 80, recentY, width - 160, recentHeight);
       drawSectionTitle(context, labels.latest, labels.latestTitle, 112, recentY + 43);
       if (!recent.length) {
