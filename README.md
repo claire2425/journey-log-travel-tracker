@@ -33,9 +33,11 @@ pnpm build
 - Journeys, custom places, and the expense ledger are stored in this browser's
   IndexedDB database, so the app remains useful offline.
 - Optional private sync is available after Supabase is configured. A person
-  signs in with an emailed verification code; Supabase Row Level Security makes every
-  cloud record available only to that signed-in account. The app uses HTTPS in
-  transit and does **not** claim end-to-end encryption.
+  signs in with an emailed Magic Link by default, or an emailed verification
+  code when their Supabase email template is configured for it. Supabase Row
+  Level Security makes every cloud record available only to that signed-in
+  account. The app uses HTTPS in transit and does **not** claim end-to-end
+  encryption.
 - The first cloud sync is an explicit action. It compares this device and the
   cloud before uploading; ordinary records use their newest `updated_at`
   value, and a concurrent edit is left for the person to choose rather than
@@ -74,17 +76,35 @@ pnpm build
    [`supabase/migrations/202611110001_private_sync.sql`](supabase/migrations/202611110001_private_sync.sql)
    in its SQL editor (or apply it with the Supabase CLI). It creates the
    journey tables, revision-checked sync functions, and owner-only RLS rules.
-2. In Supabase Authentication, enable Email sign-in and change the **Magic
-   Link** email template to send a code, not a link. For example, its body can
-   be `<p>Your Journey Log sign-in code: {{ .Token }}</p>` (do not include
-   `{{ .ConfirmationURL }}`). The app asks for this code in the same browser or
-   installed PWA, which also works on iPhone/iPad where Safari and a Home Screen
-   app have separate sign-in storage.
+2. In Supabase Authentication, enable Email sign-in and choose the email
+   sign-in format that fits the app you will use:
+
+   - **Default Magic Link (no extra email setup):** leave the default template
+     unchanged. The sign-in email opens a link that returns to Journey Log in
+     the same browser.
+   - **Verification code (best for an installed iPhone/iPad app):** use a
+     Supabase email configuration that permits custom templates, such as custom
+     SMTP, then change the **Magic Link** template to send a code instead of a
+     link. For example, its body can be
+     `<p>Your Journey Log sign-in code: {{ .Token }}</p>`; do not include
+     `{{ .ConfirmationURL }}`. The app accepts the code in place of a link.
+
+   With the default free Supabase email service, newly created projects cannot
+   customise the template. Its Magic Link works in a regular phone browser,
+   but on iPhone/iPad a link opened in Safari does not sign an already-installed
+   Home Screen app into its separate storage. Use the verification-code setup
+   if that installed app needs cloud sync.
 3. Copy `.env.example` to `.env.local` and fill in the Project URL plus the
    browser-safe **publishable** key from Supabase. Never use a service-role
    key in the app or in Vercel.
-4. Restart the local server, open either app page, and use **Private sync** to
-   request and enter a sign-in code. First sync is deliberately opt-in.
+4. In Supabase Authentication URL Configuration, add
+   `http://localhost:3000` to **Redirect URLs** for local testing. After your
+   HTTPS deployment exists, set its exact URL as the **Site URL** and add it to
+   **Redirect URLs** as well. This allows Magic Links to return to the app.
+5. Restart the local server, open either app page, and use **Private sync** to
+   request a sign-in email. Open a Magic Link in the same browser, or enter its
+   verification code when the email provides one. First sync is deliberately
+   opt-in.
 
 ## Deploy an installable private app
 
@@ -92,11 +112,14 @@ pnpm build
    `*.vercel.app` URL automatically; a custom domain can be attached later.
 2. Add `NEXT_PUBLIC_SUPABASE_URL` and
    `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in the Vercel Production environment,
-   then redeploy. Keep the final URL as the Supabase Site URL for the branded
-   email template and any future redirect-based sign-in flows.
+   then deploy. Once Vercel gives the final HTTPS URL, add that exact URL to
+   Supabase Authentication's **Site URL** and **Redirect URLs** before signing
+   in. It is where a default Magic Link returns.
 3. Visit the HTTPS URL on a phone. Android browsers show **Install Journey
    Log** when eligible. On iPhone or iPad, open it in Safari, use Share, then
-   choose **Add to Home Screen**.
+   choose **Add to Home Screen**. For cloud sync in an installed iPhone/iPad
+   app, use the verification-code email setup described above; the default
+   Magic Link instead signs in the Safari browser.
 
 The URL itself remains reachable so that the PWA and sign-in page can load;
 the private part is the account-protected data. Do not rely on a hidden URL as
