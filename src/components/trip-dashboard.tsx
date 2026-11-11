@@ -7,6 +7,7 @@ import { TripMap } from "@/components/trip-map";
 import { TravelRecapExport } from "@/components/travel-recap-export";
 import { listCustomPlaces } from "@/db/places";
 import { CustomPlaceInUseError, deleteCustomPlace, saveJourneyWithCustomPlaces, updateCustomPlaceAndJourneyReferences } from "@/db/journey-storage";
+import { CLOUD_SYNC_APPLIED_EVENT } from "@/db/sync";
 import { clearDemoTrips, deleteTrip, listTrips, loadDemoTrips, type TripFilters } from "@/db/trips";
 import { REFERENCE_PLACES } from "@/lib/demo-trips";
 import { getPlaceContinent, getTripDistanceBand } from "@/lib/geography";
@@ -26,7 +27,7 @@ const copy = {
   zh: {
     eyebrow: "你的旅程，你的裝置",
     title: "Journey Log",
-    subtitle: "私密、以裝置為先的飛行、火車／高鐵與郵輪旅程紀錄。資料只儲存在這個瀏覽器。",
+    subtitle: "私密、以裝置為先的飛行、火車／高鐵與郵輪旅程紀錄。資料先留在這個裝置；登入私有同步後可在你的裝置間同步。",
     sample: "載入示範旅程",
     clear: "清除示範資料",
     addJourneySuccess: "已儲存你的旅程。",
@@ -51,7 +52,7 @@ const copy = {
     noResultsTitle: "沒有符合的旅程",
     noResultsBody: "調整搜尋字詞或篩選條件後再試一次。",
     sampleNote: "示範旅程皆為虛構；地點座標為公開、近似的位置資訊，僅供展示使用。",
-    local: "只儲存在這個裝置",
+    local: "本機儲存，可私有同步",
     demo: "示範資料",
     trip: "旅程",
     filterCount: "個篩選條件",
@@ -95,7 +96,7 @@ const copy = {
   en: {
     eyebrow: "YOUR TRAVEL, YOUR DEVICE",
     title: "Journey Log",
-    subtitle: "Private, local-first records for flights, rail journeys including high-speed rail, and cruises. Your data stays in this browser.",
+    subtitle: "Private, local-first records for flights, rail journeys including high-speed rail, and cruises. Your data stay on this device until you sign in to private sync.",
     sample: "Load sample journeys",
     clear: "Clear sample data",
     addJourneySuccess: "Your journey has been saved.",
@@ -120,7 +121,7 @@ const copy = {
     noResultsTitle: "No matching journeys",
     noResultsBody: "Try changing the search or filters.",
     sampleNote: "All sample journeys are fictional. Place coordinates are public, approximate display data only.",
-    local: "Saved on this device",
+    local: "Local-first, private sync ready",
     demo: "Sample data",
     trip: "journey",
     filterCount: "active filters",
@@ -437,6 +438,19 @@ export function TripDashboard() {
   useEffect(() => {
     document.documentElement.lang = language === "zh" ? "zh-Hant" : "en";
   }, [language]);
+
+  useEffect(() => {
+    const refreshFromCloud = () => {
+      void readTrips(filters).then(([all, filtered, savedPlaces]) => {
+        setAllTrips(all);
+        setTrips(filtered);
+        setCustomPlaces(savedPlaces);
+        setStorageIssue(false);
+      }).catch(() => setStorageIssue(true));
+    };
+    window.addEventListener(CLOUD_SYNC_APPLIED_EVENT, refreshFromCloud);
+    return () => window.removeEventListener(CLOUD_SYNC_APPLIED_EVENT, refreshFromCloud);
+  }, [filters, readTrips]);
 
   const years = useMemo(() => [...new Set(allTrips.map((trip) => getJourneyDepartureLocalYear(trip)))].sort((a, b) => b - a), [allTrips]);
   const statistics = useMemo(() => calculateJourneyStatistics(trips), [trips]);

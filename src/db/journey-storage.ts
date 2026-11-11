@@ -1,5 +1,6 @@
 import { db as defaultDb, type JourneyDatabase } from "@/db/index";
 import { saveCustomPlace } from "@/db/places";
+import { notifyCloudSyncNeeded, queueSyncDelete, queueSyncUpsert } from "@/db/sync";
 import { addTrip, updateTrip } from "@/db/trips";
 import type { Place, Trip } from "@/lib/types";
 
@@ -19,18 +20,28 @@ export async function saveJourneyWithCustomPlaces(
   input: SaveJourneyWithCustomPlacesInput,
   database: JourneyDatabase = defaultDb,
 ): Promise<string> {
-  return database.transaction("rw", database.custom_places, database.trips, async () => {
-    for (const place of input.customPlaces ?? []) {
-      await saveCustomPlace(place, database);
-    }
+  const tripId = await database.transaction(
+    "rw",
+    database.custom_places,
+    database.trips,
+    database.sync_profile,
+    database.sync_record_state,
+    database.sync_outbox,
+    async () => {
+      for (const place of input.customPlaces ?? []) {
+        await saveCustomPlace(place, database, false);
+      }
 
-    if (input.operation === "update") {
-      await updateTrip(input.trip, database);
-      return input.trip.id;
-    }
+      if (input.operation === "update") {
+        await updateTrip(input.trip, database, false);
+        return input.trip.id;
+      }
 
-    return addTrip(input.trip, database);
-  });
+      return addTrip(input.trip, database, false);
+    },
+  );
+  notifyCloudSyncNeeded();
+  return tripId;
 }
 
 export class CustomPlaceInUseError extends Error {
@@ -53,18 +64,29 @@ export async function deleteCustomPlace(
   const placeId = id.trim();
   if (!placeId) throw new Error("A saved place id is required.");
 
-  return database.transaction("rw", database.custom_places, database.trips, async () => {
-    const place = await database.custom_places.get(placeId);
-    if (!place) return "not_found";
+  const result = await database.transaction(
+    "rw",
+    database.custom_places,
+    database.trips,
+    database.sync_profile,
+    database.sync_record_state,
+    database.sync_outbox,
+    async () => {
+      const place = await database.custom_places.get(placeId);
+      if (!place) return "not_found";
 
-    const journeyUsingPlace = await database.trips
-      .filter((trip) => trip.origin.id === placeId || trip.destination.id === placeId)
-      .first();
-    if (journeyUsingPlace) throw new CustomPlaceInUseError(placeId);
+      const journeyUsingPlace = await database.trips
+        .filter((trip) => trip.origin.id === placeId || trip.destination.id === placeId)
+        .first();
+      if (journeyUsingPlace) throw new CustomPlaceInUseError(placeId);
 
-    await database.custom_places.delete(placeId);
-    return "deleted";
-  });
+      await database.custom_places.delete(placeId);
+      await queueSyncDelete("custom_place", placeId, database);
+      return "deleted";
+    },
+  );
+  if (result === "deleted") notifyCloudSyncNeeded();
+  return result;
 }
 
 /**
@@ -76,20 +98,34 @@ export async function updateCustomPlaceAndJourneyReferences(
   input: Place,
   database: JourneyDatabase = defaultDb,
 ): Promise<Place> {
-  return database.transaction("rw", database.custom_places, database.trips, async () => {
-    const place = await saveCustomPlace(input, database);
-    const affectedTrips = await database.trips
-      .filter((trip) => trip.origin.id === place.id || trip.destination.id === place.id)
-      .toArray();
+  const updatedPlace = await database.transaction(
+    "rw",
+    database.custom_places,
+    database.trips,
+    database.sync_profile,
+    database.sync_record_state,
+    database.sync_outbox,
+    async () => {
+      const place = await saveCustomPlace(input, database, false);
+      const affectedTrips = await database.trips
+        .filter((trip) => trip.origin.id === place.id || trip.destination.id === place.id)
+        .toArray();
 
-    if (affectedTrips.length) {
-      await database.trips.bulkPut(affectedTrips.map((trip) => ({
-        ...trip,
-        origin: trip.origin.id === place.id ? place : trip.origin,
-        destination: trip.destination.id === place.id ? place : trip.destination,
-      })));
-    }
+      if (affectedTrips.length) {
+        const changedAt = new Date().toISOString();
+        const updatedTrips = affectedTrips.map((trip) => ({
+          ...trip,
+          origin: trip.origin.id === place.id ? place : trip.origin,
+          destination: trip.destination.id === place.id ? place : trip.destination,
+          updated_at: changedAt,
+        }));
+        await database.trips.bulkPut(updatedTrips);
+        for (const trip of updatedTrips) await queueSyncUpsert("trip", trip, database);
+      }
 
-    return place;
-  });
+      return place;
+    },
+  );
+  notifyCloudSyncNeeded();
+  return updatedPlace;
 }

@@ -1,4 +1,5 @@
 import { db as defaultDb, type JourneyDatabase } from "@/db/index";
+import { notifyCloudSyncNeeded, queueSyncDelete, queueSyncUpsert } from "@/db/sync";
 import { getDemoTrips } from "@/lib/demo-trips";
 import { getJourneyDepartureLocalYear } from "@/lib/journey-date";
 import { getPlaceContinent, getTripDistanceBand } from "@/lib/geography";
@@ -30,20 +31,62 @@ function normalizeTrip(input: Trip): Trip {
   });
 }
 
-export async function addTrip(input: Trip, database: JourneyDatabase = defaultDb): Promise<string> {
+export async function addTrip(
+  input: Trip,
+  database: JourneyDatabase = defaultDb,
+  shouldNotify = true,
+): Promise<string> {
   const trip = normalizeTrip(input);
-  await database.trips.add(trip);
+  await database.transaction(
+    "rw",
+    database.trips,
+    database.sync_profile,
+    database.sync_record_state,
+    database.sync_outbox,
+    async () => {
+      await database.trips.add(trip);
+      await queueSyncUpsert("trip", trip, database);
+    },
+  );
+  if (shouldNotify) notifyCloudSyncNeeded();
   return trip.id;
 }
 
-export async function updateTrip(input: Trip, database: JourneyDatabase = defaultDb): Promise<void> {
-  const trip = normalizeTrip(input);
-  const count = await database.trips.update(trip.id, trip);
-  if (count === 0) throw new Error(`Trip not found: ${trip.id}`);
+export async function updateTrip(
+  input: Trip,
+  database: JourneyDatabase = defaultDb,
+  shouldNotify = true,
+): Promise<void> {
+  const trip = normalizeTrip({ ...input, updated_at: new Date().toISOString() });
+  await database.transaction(
+    "rw",
+    database.trips,
+    database.sync_profile,
+    database.sync_record_state,
+    database.sync_outbox,
+    async () => {
+      const count = await database.trips.update(trip.id, trip);
+      if (count === 0) throw new Error(`Trip not found: ${trip.id}`);
+      await queueSyncUpsert("trip", trip, database);
+    },
+  );
+  if (shouldNotify) notifyCloudSyncNeeded();
 }
 
 export async function deleteTrip(id: string, database: JourneyDatabase = defaultDb): Promise<void> {
-  await database.trips.delete(id);
+  await database.transaction(
+    "rw",
+    database.trips,
+    database.sync_profile,
+    database.sync_record_state,
+    database.sync_outbox,
+    async () => {
+      const trip = await database.trips.get(id);
+      await database.trips.delete(id);
+      if (trip && !trip.is_demo) await queueSyncDelete("trip", id, database);
+    },
+  );
+  notifyCloudSyncNeeded();
 }
 
 export async function getTrip(id: string, database: JourneyDatabase = defaultDb): Promise<Trip | undefined> {

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { AppNavigation } from "@/components/app-navigation";
 import { ExpenseAnalytics } from "@/components/expense-analytics";
 import { addExpense, deleteExpense, getExpenseLedgerSettings, listExpenses, saveExpenseLedgerSettings, updateExpense } from "@/db/expenses";
+import { CLOUD_SYNC_APPLIED_EVENT } from "@/db/sync";
 import { AutomaticExchangeRateQuoteSchema, type AutomaticExchangeRateQuote } from "@/lib/exchange-rates";
 import { calculateExpenseSettlement } from "@/lib/expense-settlement";
 import { buildExpenseStatistics } from "@/lib/expense-statistics";
@@ -34,7 +35,7 @@ type ExpenseForm = {
 
 const copy = {
   zh: {
-    eyebrow: "TRAVEL SPLIT", title: "旅伴記帳", local: "帳本儲存在這個裝置", language: "EN",
+    eyebrow: "TRAVEL SPLIT", title: "旅伴記帳", local: "本機儲存，可私有同步", language: "EN",
     subtitle: "以一種結算幣別整合旅行支出；每筆仍保留原始付款幣別和確認時的匯率快照。",
     members: "旅伴", memberHint: "加入所有會一起分帳的人；付款人也要先加入。", memberPlaceholder: "輸入旅伴名字", add: "新增",
     categories: "支出類別", categoryHint: "可加入自己的類別，例如咖啡、伴手禮或租車。", categoryPlaceholder: "新增類別", remove: "移除",
@@ -47,7 +48,7 @@ const copy = {
     cannotRemoveMember: "這位旅伴已出現在帳目中，為保留結算紀錄，目前不能移除。", cannotRemoveCategory: "這個類別已被帳目使用，為保留歷史紀錄，目前不能移除。", enterMember: "請先輸入旅伴名字。", duplicateMember: "這位旅伴已經在帳本中。", enterCategory: "請先輸入類別名稱。", duplicateCategory: "這個類別已經存在。", invalidExpense: "請完整填寫名稱、金額、幣別、付款人和至少一位分攤者。", invalidMoney: "金額格式不正確，或小數位數不符合此幣別。", addedMember: "已新增旅伴。", addedCategory: "已新增類別。", addedExpense: "已加入帳目，結算已更新。", removed: "已移除。", loading: "正在讀取旅伴帳本⋯", storageError: "無法讀取本機帳本。請重新整理後再試一次。", ledgerError: "帳目資料有不一致之處，請檢查旅伴和支出資料。",
   },
   en: {
-    eyebrow: "TRAVEL SPLIT", title: "Travel split", local: "Ledger stays on this device", language: "繁中",
+    eyebrow: "TRAVEL SPLIT", title: "Travel split", local: "Local-first, private sync ready", language: "繁中",
     subtitle: "Settle travel spending in one chosen currency while preserving every original payment and its confirmed exchange-rate snapshot.",
     members: "Travellers", memberHint: "Add everyone who may share costs. A payer must be added first.", memberPlaceholder: "Traveller name", add: "Add",
     categories: "Expense categories", categoryHint: "Add your own categories, such as coffee, souvenirs, or car hire.", categoryPlaceholder: "New category", remove: "Remove",
@@ -151,6 +152,19 @@ export function ExpenseDashboard() {
   }, []);
 
   useEffect(() => { document.documentElement.lang = language === "zh" ? "zh-Hant" : "en"; }, [language]);
+
+  useEffect(() => {
+    const refreshFromCloud = () => {
+      void Promise.all([getExpenseLedgerSettings(), listExpenses()]).then(([loadedSettings, loadedExpenses]) => {
+        setSettings(loadedSettings);
+        setExpenses(loadedExpenses);
+        setExpenseForm((current) => synchroniseExpenseForm(current, loadedSettings));
+        setStorageIssue(false);
+      }).catch(() => setStorageIssue(true));
+    };
+    window.addEventListener(CLOUD_SYNC_APPLIED_EVENT, refreshFromCloud);
+    return () => window.removeEventListener(CLOUD_SYNC_APPLIED_EVENT, refreshFromCloud);
+  }, []);
 
   const settlementCurrency = settings?.settlement_currency ?? null;
   const memberById = useMemo(() => new Map(settings?.members.map((member) => [member.id, member]) ?? []), [settings]);

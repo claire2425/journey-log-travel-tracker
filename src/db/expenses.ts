@@ -1,4 +1,5 @@
 import { db as defaultDb, type JourneyDatabase } from "@/db/index";
+import { notifyCloudSyncNeeded, queueSyncDelete, queueSyncUpsert } from "@/db/sync";
 import { ExpenseLedgerSettingsSchema, ExpenseSchema, type Expense, type ExpenseLedgerSettings } from "@/lib/types";
 
 export const EXPENSE_LEDGER_ID = "expense-ledger";
@@ -25,7 +26,20 @@ export async function getExpenseLedgerSettings(database: JourneyDatabase = defau
   if (existing) return ExpenseLedgerSettingsSchema.parse(existing);
 
   const settings = createDefaultExpenseLedgerSettings();
-  await database.expense_settings.put(settings);
+  await database.transaction(
+    "rw",
+    database.expense_settings,
+    database.sync_profile,
+    database.sync_record_state,
+    database.sync_outbox,
+    async () => {
+      const concurrentSettings = await database.expense_settings.get(EXPENSE_LEDGER_ID);
+      if (concurrentSettings) return;
+      await database.expense_settings.put(settings);
+      await queueSyncUpsert("expense_settings", settings, database);
+    },
+  );
+  notifyCloudSyncNeeded();
   return settings;
 }
 
@@ -38,7 +52,18 @@ export async function saveExpenseLedgerSettings(input: ExpenseLedgerSettings, da
     settlement_currency: input.settlement_currency?.trim().toUpperCase() ?? null,
     updated_at: now(),
   });
-  await database.expense_settings.put(settings);
+  await database.transaction(
+    "rw",
+    database.expense_settings,
+    database.sync_profile,
+    database.sync_record_state,
+    database.sync_outbox,
+    async () => {
+      await database.expense_settings.put(settings);
+      await queueSyncUpsert("expense_settings", settings, database);
+    },
+  );
+  notifyCloudSyncNeeded();
   return settings;
 }
 
@@ -69,16 +94,38 @@ function normalizeExpense(input: Expense, updatedAt?: string): Expense {
 
 export async function addExpense(input: Expense, database: JourneyDatabase = defaultDb): Promise<string> {
   const expense = normalizeExpense(input);
-  await database.expense_entries.add(expense);
+  await database.transaction(
+    "rw",
+    database.expense_entries,
+    database.sync_profile,
+    database.sync_record_state,
+    database.sync_outbox,
+    async () => {
+      await database.expense_entries.add(expense);
+      await queueSyncUpsert("expense", expense, database);
+    },
+  );
+  notifyCloudSyncNeeded();
   return expense.id;
 }
 
 /** Replaces an existing entry while preserving a validated rate snapshot. */
 export async function updateExpense(input: Expense, database: JourneyDatabase = defaultDb): Promise<Expense> {
   const expense = normalizeExpense(input, now());
-  const existing = await database.expense_entries.get(expense.id);
-  if (!existing) throw new Error(`Expense not found: ${expense.id}`);
-  await database.expense_entries.put(expense);
+  await database.transaction(
+    "rw",
+    database.expense_entries,
+    database.sync_profile,
+    database.sync_record_state,
+    database.sync_outbox,
+    async () => {
+      const existing = await database.expense_entries.get(expense.id);
+      if (!existing) throw new Error(`Expense not found: ${expense.id}`);
+      await database.expense_entries.put(expense);
+      await queueSyncUpsert("expense", expense, database);
+    },
+  );
+  notifyCloudSyncNeeded();
   return expense;
 }
 
@@ -90,5 +137,17 @@ export async function listExpenses(database: JourneyDatabase = defaultDb): Promi
 }
 
 export async function deleteExpense(id: string, database: JourneyDatabase = defaultDb): Promise<void> {
-  await database.expense_entries.delete(id);
+  await database.transaction(
+    "rw",
+    database.expense_entries,
+    database.sync_profile,
+    database.sync_record_state,
+    database.sync_outbox,
+    async () => {
+      const expense = await database.expense_entries.get(id);
+      await database.expense_entries.delete(id);
+      if (expense) await queueSyncDelete("expense", id, database);
+    },
+  );
+  notifyCloudSyncNeeded();
 }

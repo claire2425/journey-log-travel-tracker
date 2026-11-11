@@ -1,4 +1,5 @@
 import { db as defaultDb, type JourneyDatabase } from "@/db/index";
+import { notifyCloudSyncNeeded, queueSyncUpsert } from "@/db/sync";
 import { PlaceSchema, type Place } from "@/lib/types";
 
 export type CustomPlaceInput = Omit<Place, "id"> & { id?: string };
@@ -39,8 +40,20 @@ export async function listCustomPlaces(database: JourneyDatabase = defaultDb): P
 export async function saveCustomPlace(
   input: CustomPlaceInput,
   database: JourneyDatabase = defaultDb,
+  shouldNotify = true,
 ): Promise<Place> {
   const place = normalizeCustomPlace(input);
-  await database.custom_places.put(place);
+  await database.transaction(
+    "rw",
+    database.custom_places,
+    database.sync_profile,
+    database.sync_record_state,
+    database.sync_outbox,
+    async () => {
+      await database.custom_places.put(place);
+      await queueSyncUpsert("custom_place", place, database);
+    },
+  );
+  if (shouldNotify) notifyCloudSyncNeeded();
   return place;
 }
