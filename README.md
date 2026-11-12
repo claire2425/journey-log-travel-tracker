@@ -77,7 +77,12 @@ pnpm build
    in its SQL editor (or apply it with the Supabase CLI). It creates the
    journey tables, revision-checked sync functions, and owner-only RLS rules.
 2. In Supabase Authentication, enable Email sign-in and choose the email
-   sign-in format that fits the app you will use:
+   sign-in format that fits the app you will use. **Before sharing the app with
+   anyone outside your Supabase team, configure a transactional SMTP provider**
+   (such as Resend, Postmark, or SES), verify its sender, and set an
+   appropriate Auth email rate limit. Supabase's built-in sender is only for
+   testing: it permits project team addresses and has a project-wide limit of
+   two emails per hour.
 
    - **Default Magic Link (no extra email setup):** leave the default template
      unchanged. The sign-in email opens a link that returns to Journey Log in
@@ -124,6 +129,15 @@ pnpm build
 The URL itself remains reachable so that the PWA and sign-in page can load;
 the private part is the account-protected data. Do not rely on a hidden URL as
 the privacy boundary.
+
+## What sharing means today
+
+Publishing the URL lets other people create their **own private Journey Log
+accounts** once SMTP is configured. Row Level Security keeps one account's
+cloud records invisible to every other account. It does not yet provide a
+shared trip, joint ledger, invitations, or member-level permissions across
+different accounts; those require an explicit collaborative-workspace feature
+rather than sharing a login.
 
 ## Development notes
 

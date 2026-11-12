@@ -18,6 +18,7 @@ import {
   getCloudSyncProfile,
   pauseCloudSync,
 } from "@/db/sync";
+import { classifyPasswordlessEmailError, type PasswordlessEmailErrorKind } from "@/lib/passwordless-email-error";
 import { passwordlessEmailOptions } from "@/lib/passwordless-email";
 
 type Language = "zh" | "en";
@@ -34,13 +35,14 @@ type RemoteSummary = {
 const copy = {
   zh: {
     accountMismatch: "這個瀏覽器保留了另一個帳號的離線資料。為保護資料，請使用原帳號登入，或先在另一個瀏覽器設定新帳號。",
+    accountScope: "每個 Email 帳號的雲端資料彼此隔離；目前支援同一帳號跨裝置同步，尚未提供多人共用同一個旅程或帳本。",
     cloud: "私有同步",
     conflict: "需要確認",
     conflictBody: "同一筆資料在另一台裝置也被修改。兩個版本都尚未自動覆蓋。請選擇要保留的版本。",
     continueSetup: "開始安全同步",
     code: "驗證碼（如 Email 提供）",
     codePlaceholder: "若 Email 內有驗證碼，請輸入於此",
-    signInEmailSent: "登入 Email 已寄出。若信內有驗證碼，請在下方輸入；若是登入連結，請在這個瀏覽器開啟它，Journey Log 會自動登入。",
+    signInEmailSent: "登入 Email 已寄到 {email}。若信內有驗證碼，請在下方輸入；若是登入連結，請在這個瀏覽器開啟它，Journey Log 會自動登入。請同時查看垃圾郵件匣。",
     email: "Email",
     emailPlaceholder: "you@example.com",
     firstSync: "第一次同步會比較這台裝置與雲端的資料；同一筆旅程或帳目會以較新的修改時間為準。任何無法安全自動處理的變更都會保留，讓你決定。",
@@ -55,7 +57,15 @@ const copy = {
     pending: "筆變更等待同步",
     remoteFound: "雲端已有資料，第一次同步會安全合併兩端的紀錄。",
     resume: "繼續同步",
-    sendFailed: "無法寄送登入 Email，請確認 Email 與雲端設定。",
+    resendIn: "可在 {seconds} 秒後重新寄送。",
+    sendError: {
+      rate_limited: "登入 Email 的寄送額度已用完。這是目前伺服器的寄件限制，不是 Gmail 問題；請稍後再試，或設定自訂 SMTP 才能讓其他人穩定使用。",
+      email_not_authorized: "目前的測試寄件服務只能寄給 Supabase 專案成員。分享給其他人前必須設定自訂 SMTP 寄件服務。",
+      redirect_not_allowed: "登入回跳網址尚未授權。請聯絡此網站的管理者檢查 Supabase 的 Redirect URLs。",
+      invalid_email: "請輸入有效的 Email 地址。",
+      network: "目前無法連線寄送登入 Email，請確認網路後再試。",
+      unknown: "無法寄送登入 Email。請確認 Email 與雲端設定後再試。",
+    },
     signedOut: "已登出；這台裝置的離線副本仍保留，不會再上傳，直到你以同一帳號重新啟用同步。",
     syncing: "正在同步⋯",
     syncNow: "立即同步",
@@ -66,13 +76,14 @@ const copy = {
   },
   en: {
     accountMismatch: "This browser keeps an offline copy for a different account. To protect data, sign in with that account or set up the new account in another browser.",
+    accountScope: "Cloud data are isolated per email account. This currently syncs one account across devices; it does not yet share one journey or ledger with other accounts.",
     cloud: "Private sync",
     conflict: "Review needed",
     conflictBody: "The same record changed on another device. Neither version was overwritten automatically; choose which version to keep.",
     continueSetup: "Start safe sync",
     code: "Verification code (if your email includes one)",
     codePlaceholder: "Enter the code only if your email includes one",
-    signInEmailSent: "A sign-in email was sent. If it includes a code, enter it below; if it includes a link, open it in this browser and Journey Log will sign you in automatically.",
+    signInEmailSent: "A sign-in email was sent to {email}. If it includes a code, enter it below; if it includes a link, open it in this browser and Journey Log will sign you in automatically. Check your spam folder too.",
     email: "Email",
     emailPlaceholder: "you@example.com",
     firstSync: "First sync compares this device with the cloud. For the same journey or expense, the newer edit is used; anything that cannot be handled safely stays for you to decide.",
@@ -87,7 +98,15 @@ const copy = {
     pending: "change(s) waiting to sync",
     remoteFound: "Cloud data found. The first sync will safely merge both copies.",
     resume: "Resume sync",
-    sendFailed: "Could not send a sign-in email. Check the email address and cloud setup.",
+    resendIn: "You can resend in {seconds} seconds.",
+    sendError: {
+      rate_limited: "The sign-in email sending limit has been reached. This is the server's delivery limit, not a Gmail issue; try later or configure custom SMTP before sharing the app.",
+      email_not_authorized: "The current test sender can email only Supabase project members. Configure custom SMTP before sharing the app with other people.",
+      redirect_not_allowed: "This sign-in return address is not authorised. Ask the site owner to check Supabase Redirect URLs.",
+      invalid_email: "Enter a valid email address.",
+      network: "The sign-in email could not be sent because the network is unavailable. Reconnect and try again.",
+      unknown: "Could not send a sign-in email. Check the email address and cloud setup.",
+    },
     signedOut: "Signed out. This device's offline copy remains here and will not upload until you re-enable sync with the same account.",
     syncing: "Syncing…",
     syncNow: "Sync now",
@@ -97,6 +116,10 @@ const copy = {
     verifyFailed: "That code is invalid or expired. Request a new one.",
   },
 } as const;
+
+function interpolate(template: string, values: Record<string, string | number>) {
+  return template.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? ""));
+}
 
 function summariseSnapshot(snapshot: CloudSyncSnapshot): RemoteSummary {
   const total = snapshot.trips.filter((record) => !record.deleted_at).length
@@ -134,6 +157,7 @@ export function CloudSync({ language }: CloudSyncProps) {
   const [email, setEmail] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
   const [signInEmailSent, setSignInEmailSent] = useState(false);
+  const [resendSeconds, setResendSeconds] = useState(0);
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
   const [summary, setSummary] = useState<RemoteSummary>();
@@ -143,6 +167,12 @@ export function CloudSync({ language }: CloudSyncProps) {
   const [conflicts, setConflicts] = useState<CloudSyncConflict[]>([]);
   const syncing = useRef(false);
   const c = copy[language];
+
+  useEffect(() => {
+    if (resendSeconds <= 0) return;
+    const timer = window.setTimeout(() => setResendSeconds((seconds) => Math.max(0, seconds - 1)), 1000);
+    return () => window.clearTimeout(timer);
+  }, [resendSeconds]);
 
   const updateStatus = useCallback(async () => {
     const current = await cloudSyncStatus();
@@ -245,25 +275,31 @@ export function CloudSync({ language }: CloudSyncProps) {
   }, [syncNow]);
 
   async function sendSignInEmail() {
-    if (!client || !email.trim()) return;
+    const targetEmail = email.trim();
+    if (!client || !targetEmail || resendSeconds > 0) return;
     setBusy(true);
+    setStatus("");
     try {
       const { error } = await client.auth.signInWithOtp({
-        email: email.trim(),
+        email: targetEmail,
         // Supabase determines whether this email contains its default magic
         // link or an OTP from a custom template. A magic link returns to this
         // app; the code verification path below remains available for OTPs.
         options: passwordlessEmailOptions(window.location.origin),
       });
       if (error) {
-        setStatus(c.sendFailed);
+        const kind = classifyPasswordlessEmailError(error);
+        if (kind === "rate_limited") setResendSeconds(60);
+        setStatus(c.sendError[kind]);
         return;
       }
       setVerificationCode("");
       setSignInEmailSent(true);
-      setStatus(c.signInEmailSent);
-    } catch {
-      setStatus(c.sendFailed);
+      setResendSeconds(60);
+      setStatus(interpolate(c.signInEmailSent, { email: targetEmail }));
+    } catch (error) {
+      const kind: PasswordlessEmailErrorKind = classifyPasswordlessEmailError(error);
+      setStatus(c.sendError[kind]);
     } finally {
       setBusy(false);
     }
@@ -356,8 +392,65 @@ export function CloudSync({ language }: CloudSyncProps) {
       {!session ? (
         <div className="mt-3 grid gap-2">
           <label className="sr-only" htmlFor="cloud-sync-email">{c.email}</label>
-          <input className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-teal-500 focus:ring-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white" id="cloud-sync-email" onChange={(event) => { setEmail(event.target.value); setVerificationCode(""); setSignInEmailSent(false); }} placeholder={c.emailPlaceholder} type="email" value={email} />
-          {signInEmailSent ? <><label className="sr-only" htmlFor="cloud-sync-code">{c.code}</label><input autoComplete="one-time-code" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-teal-500 focus:ring-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white" id="cloud-sync-code" inputMode="numeric" maxLength={8} onChange={(event) => setVerificationCode(event.target.value)} placeholder={c.codePlaceholder} type="text" value={verificationCode} /><button className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-bold text-white transition hover:bg-slate-700 disabled:opacity-60 dark:bg-white dark:text-slate-900" disabled={busy || !verificationCode.trim()} onClick={() => void verifySignInCode()} type="button">{c.verifyCode}</button><button className="rounded-lg px-3 py-1 text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white" disabled={busy || !email.trim()} onClick={() => void sendSignInEmail()} type="button">{c.sendSignInEmail}</button></> : <button className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-bold text-white transition hover:bg-slate-700 disabled:opacity-60 dark:bg-white dark:text-slate-900" disabled={busy || !email.trim()} onClick={() => void sendSignInEmail()} type="button">{c.sendSignInEmail}</button>}
+          <input
+            autoComplete="email"
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-teal-500 focus:ring-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+            id="cloud-sync-email"
+            inputMode="email"
+            maxLength={254}
+            onChange={(event) => {
+              setEmail(event.target.value);
+              setVerificationCode("");
+              setSignInEmailSent(false);
+              setResendSeconds(0);
+              setStatus("");
+            }}
+            placeholder={c.emailPlaceholder}
+            type="email"
+            value={email}
+          />
+          {signInEmailSent ? (
+            <>
+              <label className="sr-only" htmlFor="cloud-sync-code">{c.code}</label>
+              <input
+                autoComplete="one-time-code"
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-teal-500 focus:ring-2 dark:border-slate-700 dark:bg-slate-950 dark:text-white"
+                id="cloud-sync-code"
+                inputMode="numeric"
+                maxLength={8}
+                onChange={(event) => setVerificationCode(event.target.value)}
+                placeholder={c.codePlaceholder}
+                type="text"
+                value={verificationCode}
+              />
+              <button
+                className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-bold text-white transition hover:bg-slate-700 disabled:opacity-60 dark:bg-white dark:text-slate-900"
+                disabled={busy || !verificationCode.trim()}
+                onClick={() => void verifySignInCode()}
+                type="button"
+              >
+                {c.verifyCode}
+              </button>
+              <button
+                className="rounded-lg px-3 py-1 text-xs font-bold text-slate-500 hover:text-slate-900 disabled:opacity-60 dark:hover:text-white"
+                disabled={busy || !email.trim() || resendSeconds > 0}
+                onClick={() => void sendSignInEmail()}
+                type="button"
+              >
+                {resendSeconds > 0 ? interpolate(c.resendIn, { seconds: resendSeconds }) : c.sendSignInEmail}
+              </button>
+            </>
+          ) : (
+            <button
+              className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-bold text-white transition hover:bg-slate-700 disabled:opacity-60 dark:bg-white dark:text-slate-900"
+              disabled={busy || !email.trim() || resendSeconds > 0}
+              onClick={() => void sendSignInEmail()}
+              type="button"
+            >
+              {resendSeconds > 0 ? interpolate(c.resendIn, { seconds: resendSeconds }) : c.sendSignInEmail}
+            </button>
+          )}
+          <p className="text-xs leading-5 text-slate-500 dark:text-slate-400">{c.accountScope}</p>
         </div>
       ) : accountMismatch ? (
         <div className="mt-3"><p className="text-xs leading-5 text-amber-800 dark:text-amber-200">{c.accountMismatch}</p><button className="mt-2 rounded-lg px-2 py-1 text-xs font-bold text-slate-500 hover:text-slate-900 dark:hover:text-white" disabled={busy} onClick={() => void signOut()} type="button">{c.logout}</button></div>
