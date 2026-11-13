@@ -1,7 +1,80 @@
-# Journey Log
+# Journey Log — travel tracker & trip expense splitter
 
-Journey Log is a local-first travel journal for flights, rail/high-speed rail,
-cruises, and other journeys. It also includes a shared travel-expense ledger.
+**Live app:** https://journey-log-beta.vercel.app
+
+Journey Log is a local-first, installable web app (PWA) for recording flights,
+rail / high-speed rail, cruises and other journeys. It turns them into
+statistics, an interactive route map and a shareable PNG recap, and includes a
+multi-currency ledger for splitting travel expenses with friends. Data stays
+on the device by default, with optional private cloud sync.
+
+> 繁體中文簡介：Journey Log 是一個「資料先存在自己裝置」的旅程紀錄 App，可記錄飛行、火車／高鐵與郵輪，自動產生統計、互動路線地圖與可分享的足跡報告圖片，並內建多幣別旅伴分帳。可安裝到手機主畫面，也可選擇以 Email 驗證碼登入、在自己的裝置間私有同步。介面支援繁體中文與英文。
+
+| Journeys & statistics | Phone (installable PWA) |
+| --- | --- |
+| ![Journey dashboard with statistics](docs/screenshots/journeys.png) | ![Mobile layout](docs/screenshots/mobile.png) |
+
+| Shareable PNG recap | Multi-currency expense settlement |
+| --- | --- |
+| ![PNG travel recap with fitted footprint map and regional close-ups](docs/screenshots/recap-report.png) | ![Expense settlement and spending analysis](docs/screenshots/expenses.png) |
+
+![Interactive route map](docs/screenshots/interactive-map.png)
+
+*Screenshots use the app's fictional sample data.*
+
+## Features
+
+- **Journey log** — flights, rail / high-speed rail, cruises and other trips,
+  with autocomplete over ~9,800 airports and 76,000+ rail stations bundled
+  with the app, operator recognition from flight / train numbers, and
+  time-zone-aware durations (local departure and arrival times).
+- **Statistics & filters** — distance, travel time, "laps of the Earth",
+  countries and cities visited per year; multi-select filters by year, mode,
+  continent, distance band and trip purpose, plus free-text search.
+- **Maps** — an opt-in interactive MapLibre map, and a PNG recap whose
+  footprint map fits itself to where you have travelled, adds numbered
+  close-ups for dense regions, and tints visited countries (drawn entirely in
+  the browser on a bundled Natural Earth basemap, so it also works offline).
+- **Trip expense splitting** — expenses in any currency settle into one
+  currency using a frozen per-expense exchange-rate snapshot (automatic
+  reference rate or manual). Integer minor-unit arithmetic, deterministic
+  rounding, a short list of suggested transfers, and spending charts.
+- **Local-first & private** — IndexedDB storage, works offline as an
+  installable PWA; optional Supabase sync with Row Level Security and
+  revision-checked, conflict-aware merging (never silent overwrites).
+- **Bilingual** — every screen in Traditional Chinese and English.
+
+## Tech stack
+
+Next.js 16 (App Router) · React 19 · TypeScript (strict) · Tailwind CSS 4 ·
+Dexie / IndexedDB · Zod · MapLibre GL · Recharts · Canvas 2D (report
+rendering) · Supabase (Postgres, Auth, RLS) · Vitest · Vercel
+
+## Engineering highlights
+
+- **Business logic in `src/lib/` with unit tests** (28 test files): distance
+  and great-circle routes, time zones and local dates, statistics, settlement,
+  exact decimal currency conversion with `BigInt`, sync merging, map
+  projection and region clustering.
+- **Money is never a float.** Amounts are stored in minor units; conversions
+  use exact rational arithmetic and largest-remainder allocation so shares
+  always add up to the total.
+- **Report map** — a fitted Web-Mercator projection that chooses its central
+  meridian from the largest empty longitude gap (so trans-Pacific routes are
+  not split), single-linkage clustering to decide which regions get
+  close-ups, and collision-aware label placement.
+- **Sync safety** — every cloud write is revision-checked in a Postgres
+  function; a concurrent edit is surfaced for the person to resolve, and
+  deletions leave a minimal tombstone so other devices learn about them.
+- **Privacy by design** — no third-party request is made until the person
+  opts in (map tiles, exchange rates); place search runs against bundled data.
+
+## How this was built
+
+This is a personal portfolio project developed with AI coding agents (OpenAI
+Codex and Anthropic Claude). I defined the product and its requirements,
+directed the design decisions, and reviewed and tested the results; the
+project rules the agents follow are in [`AGENTS.md`](AGENTS.md).
 
 ## Run it locally
 
