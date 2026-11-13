@@ -3,7 +3,7 @@ import type { TripMode } from "@/lib/types";
 /** Shared transport colours for map routes, legends, and journey cards. */
 export const MODE_COLORS: Record<TripMode, string> = {
   flight: "#4a6f8f",
-  rail: "#5e7f4e",
+  rail: "#6e8c5c",
   cruise: "#b06f4e",
   other: "#7e6c9a",
 };

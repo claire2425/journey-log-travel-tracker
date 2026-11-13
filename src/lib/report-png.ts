@@ -25,7 +25,7 @@ import type { Trip, TripMode } from "@/lib/types";
 
 export type ReportLanguage = "zh" | "en";
 
-export const reportChartColors = ["#5e7f4e", "#4a6f8f", "#b06f4e", "#7e6c9a", "#b85c68", "#3d7a8a", "#c9a25a", "#7f8f3a", "#a0786a", "#736d63"];
+export const reportChartColors = ["#8fa77c", "#6f8fab", "#b06f4e", "#7e6c9a", "#b85c68", "#3d7a8a", "#c9a25a", "#7f8f3a", "#a0786a", "#736d63"];
 
 const ink = "#26241f";
 const muted = "#736d63";
@@ -110,7 +110,7 @@ function modeLabel(mode: TripMode, language: ReportLanguage) {
 }
 
 function drawHeader(context: CanvasRenderingContext2D, language: ReportLanguage, eyebrow: string, title: string, subtitle: string) {
-  text(context, "JOURNEY LOG", 80, 82, { color: "#46603c", size: 22, weight: 800 });
+  text(context, "JOURNEY LOG", 80, 82, { color: "#5c7651", size: 22, weight: 800 });
   text(context, title, 80, 143, { size: 48, weight: 800 });
   text(context, subtitle, 80, 184, { color: muted, size: 23, weight: 500 });
   text(context, eyebrow, 1520, 82, { color: muted, size: 18, weight: 700, align: "right" });
@@ -132,7 +132,7 @@ function drawMetric(context: CanvasRenderingContext2D, x: number, y: number, wid
 const SECTION_BODY_TOP = 122;
 
 function drawSectionTitle(context: CanvasRenderingContext2D, label: string, title: string, x: number, y: number) {
-  text(context, label, x, y, { color: "#46603c", size: 16, weight: 800 });
+  text(context, label, x, y, { color: "#5c7651", size: 16, weight: 800 });
   text(context, title, x, y + 38, { size: 30, weight: 800 });
 }
 
@@ -493,7 +493,7 @@ export async function downloadExpenseReportPng(statistics: ExpenseStatistics, la
         roundedRect(context, 390, y, Math.max(member.paid_minor > 0 ? 8 : 0, (member.paid_minor / maxPaid) * 420), 16, 8); context.fill();
         text(context, money(member.paid_minor), 840, y + 14, { size: 18, weight: 800 });
         text(context, `${labels.share}: ${money(member.share_minor)}`, 1030, y - 5, { color: muted, size: 17, weight: 700 });
-        text(context, `${labels.net}: ${member.net_minor >= 0 ? "+" : "−"}${money(Math.abs(member.net_minor))}`, 1030, y + 23, { color: member.net_minor >= 0 ? "#46603c" : "#93693a", size: 17, weight: 800 });
+        text(context, `${labels.net}: ${member.net_minor >= 0 ? "+" : "−"}${money(Math.abs(member.net_minor))}`, 1030, y + 23, { color: member.net_minor >= 0 ? "#5c7651" : "#93693a", size: 17, weight: 800 });
       });
 
       fillCard(context, 80, transfersY, width - 160, transferHeight);
@@ -509,7 +509,7 @@ export async function downloadExpenseReportPng(statistics: ExpenseStatistics, la
           const to = memberName.get(transfer.to_member_id) ?? transfer.to_member_id;
           font(context, 20, 800);
           text(context, fitText(context, `${from} ${labels.pays} ${to}`, 1080), 112, y + 2, { size: 20, weight: 800 });
-          text(context, money(transfer.amount_minor), 1488, y + 2, { color: "#46603c", size: 20, weight: 800, align: "right" });
+          text(context, money(transfer.amount_minor), 1488, y + 2, { color: "#5c7651", size: 20, weight: 800, align: "right" });
         });
       }
       text(context, labels.note, 80, height - 47, { color: muted, size: 16, weight: 500 });

@@ -36,7 +36,7 @@ export default async function Icon({ id }: { id: Promise<string> }) {
         <div
           style={{
             alignItems: "center",
-            background: "#46603c",
+            background: "#5c7651",
             border: `${24 * scale}px solid #c7d3bc`,
             borderRadius: "50%",
             display: "flex",

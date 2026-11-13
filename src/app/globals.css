@@ -33,12 +33,12 @@
   --color-teal-200: #c7d3bc;
   --color-teal-300: #a7b998;
   --color-teal-400: #879c76;
-  --color-teal-500: #6b815c;
-  --color-teal-600: #57704a;
-  --color-teal-700: #46603c;
-  --color-teal-800: #3a4f33;
-  --color-teal-900: #2f402a;
-  --color-teal-950: #1c2719;
+  --color-teal-500: #7a9168;
+  --color-teal-600: #66805a;
+  --color-teal-700: #5c7651;
+  --color-teal-800: #4a633f;
+  --color-teal-900: #3a4f33;
+  --color-teal-950: #233021;
 
   --color-amber-50: #faf5ea;
   --color-amber-100: #f3e8cf;
@@ -104,7 +104,7 @@
 :root {
   --background: #f3f0ea;
   --foreground: #26241f;
-  --accent: #46603c;
+  --accent: #5c7651;
 }
 
 @media (prefers-color-scheme: dark) {

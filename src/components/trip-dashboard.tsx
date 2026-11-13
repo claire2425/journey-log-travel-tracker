@@ -665,14 +665,14 @@ export function TripDashboard() {
 
         <div className="mt-6"><AppNavigation current="journeys" language={language} /></div>
 
-        <section className="mt-8 flex flex-col gap-4 rounded-3xl bg-slate-900 p-6 text-white shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <section className="mt-8 flex flex-col gap-4 rounded-3xl border border-teal-100 bg-teal-50 p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between dark:border-slate-700 dark:bg-slate-900">
           <div>
-            <p className="text-sm font-semibold text-teal-300">{c.visible} {trips.length} {trips.length === 1 ? c.trip : c.journeys}</p>
-            <p className="mt-1 text-sm text-slate-300">{c.sampleNote}</p>
+            <p className="text-sm font-semibold text-teal-800 dark:text-teal-300">{c.visible} {trips.length} {trips.length === 1 ? c.trip : c.journeys}</p>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{c.sampleNote}</p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <button className="rounded-xl bg-teal-400 px-4 py-2.5 text-sm font-bold text-teal-950 transition hover:bg-teal-300 disabled:cursor-wait disabled:opacity-60" disabled={isSaving} onClick={() => void handleLoadSample()} type="button">{isSaving ? c.loading : c.sample}</button>
-            {hasDemoTrips ? <button className="rounded-xl border border-slate-600 px-4 py-2.5 text-sm font-bold text-white transition hover:border-slate-400 disabled:cursor-wait disabled:opacity-60" disabled={isSaving} onClick={() => void handleClearSample()} type="button">{c.clear}</button> : null}
+            <button className="rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-teal-800 disabled:cursor-wait disabled:opacity-60" disabled={isSaving} onClick={() => void handleLoadSample()} type="button">{isSaving ? c.loading : c.sample}</button>
+            {hasDemoTrips ? <button className="rounded-xl border border-teal-300 bg-white px-4 py-2.5 text-sm font-bold text-teal-800 transition hover:bg-teal-100 disabled:cursor-wait disabled:opacity-60 dark:border-slate-600 dark:bg-transparent dark:text-white" disabled={isSaving} onClick={() => void handleClearSample()} type="button">{c.clear}</button> : null}
           </div>
         </section>
 
