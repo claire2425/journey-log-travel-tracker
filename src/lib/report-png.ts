@@ -421,9 +421,9 @@ export async function downloadExpenseReportPng(statistics: ExpenseStatistics, la
   const transfersY = membersY + membersHeight + 32;
   const height = transfersY + transferHeight + 120;
   const labels = language === "zh" ? {
-    title: "旅伴記帳分析", subtitle: `最後結算幣別：${statistics.currency}`, generated: "本機產生的 PNG 報告", total: "總支出", categories: "類別支出", categoryTitle: "各類別占總支出的比例", members: "旅伴付款與分攤", memberTitle: "實際先付、自己分攤與結算差額", paid: "實際先付", share: "自己分攤", net: "結算差額", transfers: "最後轉帳建議", none: "帳目已平衡，不需要轉帳。", pays: "支付給", note: "金額只使用每筆已確認並凍結的換匯快照；不會混加原始幣別或重算匯率。",
+    title: "旅伴記帳分析", subtitle: `最後結算幣別：${statistics.currency}`, generated: "本機產生的 PNG 報告", total: "總支出", categories: "類別支出", categoryTitle: "各類別占總支出的比例", members: "旅伴付款與分攤", memberTitle: "實際先付、自己分攤與結算差額", paid: "實際先付", share: "自己分攤", net: "結算差額", transfers: "轉帳", transfersTitle: "最後轉帳建議", none: "帳目已平衡，不需要轉帳。", pays: "支付給", note: "金額只使用每筆已確認並凍結的換匯快照；不會混加原始幣別或重算匯率。",
   } : {
-    title: "Travel split recap", subtitle: `Final settlement currency: ${statistics.currency}`, generated: "PNG report made on this device", total: "TOTAL SPENT", categories: "BY CATEGORY", categoryTitle: "Share of the total by category", members: "TRAVELLER PAYMENTS", memberTitle: "Paid up front, personal share, and settlement balance", paid: "Paid up front", share: "Personal share", net: "Settlement balance", transfers: "SETTLEMENT TRANSFERS", none: "The ledger is balanced; no transfer is needed.", pays: "pays", note: "Amounts use only confirmed, frozen conversion snapshots; original currencies are never mixed or re-rated.",
+    title: "Travel split recap", subtitle: `Final settlement currency: ${statistics.currency}`, generated: "PNG report made on this device", total: "TOTAL SPENT", categories: "BY CATEGORY", categoryTitle: "Share of the total by category", members: "TRAVELLER PAYMENTS", memberTitle: "Paid up front, personal share, and settlement balance", paid: "Paid up front", share: "Personal share", net: "Settlement balance", transfers: "TRANSFERS", transfersTitle: "Who pays whom", none: "The ledger is balanced; no transfer is needed.", pays: "pays", note: "Amounts use only confirmed, frozen conversion snapshots; original currencies are never mixed or re-rated.",
   };
   const memberName = new Map(statistics.members.map((member) => [member.member_id, member.name]));
   const money = (amount: number) => formatMoneyFromMinorUnits(amount, statistics.currency, statistics.fraction_digits, language);
@@ -497,7 +497,7 @@ export async function downloadExpenseReportPng(statistics: ExpenseStatistics, la
       });
 
       fillCard(context, 80, transfersY, width - 160, transferHeight);
-      drawSectionTitle(context, labels.transfers, labels.transfers, 112, transfersY + 43);
+      drawSectionTitle(context, labels.transfers, labels.transfersTitle, 112, transfersY + 43);
       if (!statistics.transfers.length) {
         text(context, labels.none, 112, transfersY + SECTION_BODY_TOP + 26, { color: muted, size: 20 });
       } else {
