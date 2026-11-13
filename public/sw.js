@@ -134,7 +134,9 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (url.pathname.startsWith("/_next/static/")) {
+  // The PNG report's world basemap is public reference data; caching it lets
+  // a recap image be created offline after it has been downloaded once.
+  if (url.pathname.startsWith("/_next/static/") || url.pathname === "/reference-data/world-countries-50m.json") {
     event.respondWith(cacheFirstStaticAsset(request));
   }
 });

@@ -10,7 +10,10 @@ export async function downloadCanvasPng(options: {
   height: number;
   draw: PngDraw;
 }) {
-  const pixelRatio = Math.min(Math.max(window.devicePixelRatio || 1, 1), 2);
+  // Always render at 2× so the image stays sharp when shared or zoomed on a
+  // phone, but stay under iOS Safari's ~16.7-megapixel canvas limit.
+  const maxPixels = 16_000_000;
+  const pixelRatio = Math.max(1, Math.min(2, Math.sqrt(maxPixels / (options.width * options.height))));
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(options.width * pixelRatio);
   canvas.height = Math.round(options.height * pixelRatio);

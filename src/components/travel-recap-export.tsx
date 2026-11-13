@@ -10,7 +10,7 @@ const labels = {
   zh: {
     eyebrow: "PNG REPORT",
     title: "下載旅行分析圖片",
-    body: "以目前搜尋與篩選後的旅程製作一張易讀摘要，包含繪製版世界足跡地圖、距離、交通方式與年度足跡。圖片只會在這個瀏覽器產生。",
+    body: "以目前搜尋與篩選後的旅程製作一張易讀摘要，包含自動縮放到你去過範圍的足跡地圖（密集地區另附放大圖）、距離、交通方式與年度足跡。圖片只會在這個瀏覽器產生。",
     scope: "目前篩選結果",
     journeys: "趟旅程",
     download: "下載 PNG",
@@ -23,7 +23,7 @@ const labels = {
   en: {
     eyebrow: "PNG REPORT",
     title: "Download travel analysis",
-    body: "Create a readable snapshot of the journeys in the current search and filters, including a drawn world footprint map, distance, travel modes, and yearly footprint. The image is made in this browser only.",
+    body: "Create a readable snapshot of the journeys in the current search and filters, including a footprint map that zooms to where you have been (with close-ups of busy regions), distance, travel modes, and yearly footprint. The image is made in this browser only.",
     scope: "Current results",
     journeys: "journeys",
     download: "Download PNG",

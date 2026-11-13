@@ -62,8 +62,10 @@ pnpm build
   index is a travel-recording aid, not a live timetable or an official
   operational directory.
 - The journey dashboard can create a PNG recap for the currently visible
-  journeys, including a locally drawn world-footprint sketch with route and
-  country/region colours; a fully converted expense ledger can create a PNG
+  journeys, including a footprint map drawn in the browser on a bundled
+  Natural Earth basemap. The map fits itself to the visible journeys and adds
+  enlarged panels for compact regions (for example domestic rail trips next to
+  long-haul flights); a fully converted expense ledger can create a PNG
   spending recap. These images are generated locally only after the person
   chooses to download them; they are sharing snapshots, not a restorable data
   backup.

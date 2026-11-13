@@ -1,4 +1,4 @@
-import type { Coordinate } from "@/lib/geo";
+import { greatCircleDistanceKm, type Coordinate } from "@/lib/geo";
 import { createJourneyMapData } from "@/lib/map-data";
 import type { CountryLegendEntry } from "@/lib/map-data";
 import type { RoutePattern } from "@/lib/route-patterns";
@@ -14,12 +14,23 @@ export type SchematicMapFrame = {
 export type SchematicJourneyRoute = {
   mode: TripMode;
   route_pattern: RoutePattern;
+  /** Antimeridian-split paths for the legacy equirectangular sketch. */
   paths: Coordinate[][];
+  /** The unsplit great-circle points used by the fitted report map. */
+  coordinates: Coordinate[];
+  origin_id: string;
+  destination_id: string;
+  journeys: number;
 };
 
 export type SchematicJourneyStop = {
+  id: string;
   coordinate: Coordinate;
   code: string;
+  name_zh: string;
+  name_en: string;
+  city?: string;
+  kind: Trip["origin"]["kind"];
   country: string;
   country_color: string;
   visits: number;
@@ -138,6 +149,7 @@ export function createSchematicJourneyMap(trips: Trip[]): SchematicJourneyMap {
     const key = routeKey(properties.mode, coordinates);
     const existing = routes.get(key);
     if (existing) {
+      existing.journeys += 1;
       // A return journey should remain visibly thicker even when an extra
       // one-way record shares the same visual path.
       if (properties.route_pattern === "paired_return") existing.route_pattern = "paired_return";
@@ -147,18 +159,253 @@ export function createSchematicJourneyMap(trips: Trip[]): SchematicJourneyMap {
       mode: properties.mode,
       route_pattern: properties.route_pattern,
       paths: splitPathAtDateLine(coordinates),
+      coordinates,
+      origin_id: properties.origin_id,
+      destination_id: properties.destination_id,
+      journeys: 1,
     });
   }
 
   return {
     routes: [...routes.values()],
     stops: mapData.stops.features.map((feature) => ({
+      id: feature.properties.id,
       coordinate: feature.geometry.coordinates as Coordinate,
       code: feature.properties.code,
+      name_zh: feature.properties.name_zh,
+      name_en: feature.properties.name_en,
+      city: feature.properties.city,
+      kind: feature.properties.kind,
       country: feature.properties.country,
       country_color: feature.properties.country_color,
       visits: feature.properties.visits,
     })),
     country_legend: mapData.countryLegend,
   };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Fitted Web-Mercator view for the PNG report                                */
+/* -------------------------------------------------------------------------- */
+
+export type MercatorView = {
+  frame: SchematicMapFrame;
+  centerLongitude: number;
+  /** Pixels per radian of longitude. */
+  scale: number;
+  offsetX: number;
+  offsetY: number;
+};
+
+export type ProjectedPoint = { x: number; y: number };
+
+const MERCATOR_MIN_LATITUDE = -78;
+const MERCATOR_MAX_LATITUDE = 82;
+const toRadians = (value: number) => (value * Math.PI) / 180;
+
+function normaliseLongitude(value: number) {
+  return ((((value + 180) % 360) + 360) % 360) - 180;
+}
+
+/** Longitude relative to a map centre, always within [-180, 180). */
+export function relativeLongitude(longitude: number, centerLongitude: number) {
+  return normaliseLongitude(longitude - centerLongitude);
+}
+
+export function mercatorY(latitude: number) {
+  const radians = toRadians(clamp(latitude, MERCATOR_MIN_LATITUDE, MERCATOR_MAX_LATITUDE));
+  return -Math.log(Math.tan(Math.PI / 4 + radians / 2));
+}
+
+/**
+ * Chooses the map's central meridian opposite the largest empty longitude
+ * gap, so a Tokyo–Honolulu–Los Angeles footprint is drawn across the Pacific
+ * rather than split at the anti-meridian.
+ */
+export function chooseCentralLongitude(longitudes: number[]): number {
+  const sorted = [...new Set(longitudes.map((value) => Number(normaliseLongitude(value).toFixed(6))))].sort((a, b) => a - b);
+  if (!sorted.length) return 0;
+  if (sorted.length === 1) return sorted[0]!;
+
+  let largestGap = -1;
+  let occupiedStart = sorted[0]!;
+  for (let index = 0; index < sorted.length; index += 1) {
+    const current = sorted[index]!;
+    const next = index === sorted.length - 1 ? sorted[0]! + 360 : sorted[index + 1]!;
+    const gap = next - current;
+    if (gap > largestGap) {
+      largestGap = gap;
+      occupiedStart = normaliseLongitude(next);
+    }
+  }
+  return normaliseLongitude(occupiedStart + (360 - largestGap) / 2);
+}
+
+/**
+ * Fits a Mercator view around the supplied coordinates. The minimum span keeps
+ * a single short rail journey from becoming an unreadably close street-level
+ * view, and padding leaves room for stop labels.
+ */
+export function fitMercatorView(
+  coordinates: Coordinate[],
+  frame: SchematicMapFrame,
+  options: { padding?: number; minSpanDegrees?: number; centerLongitude?: number; zoomOut?: number } = {},
+): MercatorView {
+  const padding = options.padding ?? 48;
+  const minSpan = toRadians(options.minSpanDegrees ?? 6);
+  const zoomOut = options.zoomOut ?? 1;
+  const points = coordinates.length ? coordinates : [[0, 20] as Coordinate];
+  const centerLongitude = options.centerLongitude ?? chooseCentralLongitude(points.map(([longitude]) => longitude));
+
+  const xs = points.map(([longitude]) => toRadians(relativeLongitude(longitude, centerLongitude)));
+  const ys = points.map(([, latitude]) => mercatorY(latitude));
+  let minX = Math.min(...xs);
+  let maxX = Math.max(...xs);
+  let minY = Math.min(...ys);
+  let maxY = Math.max(...ys);
+
+  const growTo = (minimum: number, maximum: number, span: number): [number, number] => {
+    if (maximum - minimum >= span) return [minimum, maximum];
+    const middle = (minimum + maximum) / 2;
+    return [middle - span / 2, middle + span / 2];
+  };
+  [minX, maxX] = growTo(minX, maxX, minSpan);
+  [minY, maxY] = growTo(minY, maxY, minSpan * 0.55);
+
+  const usableWidth = Math.max(1, frame.width - padding * 2);
+  const usableHeight = Math.max(1, frame.height - padding * 2);
+  const scale = Math.min(usableWidth / (maxX - minX), usableHeight / (maxY - minY)) / zoomOut;
+  const middleX = (minX + maxX) / 2;
+  const middleY = (minY + maxY) / 2;
+
+  return {
+    frame,
+    centerLongitude,
+    scale,
+    offsetX: frame.x + frame.width / 2 - middleX * scale,
+    offsetY: frame.y + frame.height / 2 - middleY * scale,
+  };
+}
+
+/** Projects one coordinate into the fitted view, wrapping its longitude near the centre. */
+export function projectMercator([longitude, latitude]: Coordinate, view: MercatorView, longitudeShift = 0): ProjectedPoint {
+  return {
+    x: view.offsetX + toRadians(relativeLongitude(longitude, view.centerLongitude) + longitudeShift) * view.scale,
+    y: view.offsetY + mercatorY(latitude) * view.scale,
+  };
+}
+
+/**
+ * Projects a continuous path without wrapping each vertex independently, so a
+ * route crossing the anti-meridian stays one unbroken line.
+ */
+export function projectMercatorPath(coordinates: Coordinate[], view: MercatorView): ProjectedPoint[] {
+  const output: ProjectedPoint[] = [];
+  let previousRelative: number | undefined;
+  let previousLongitude: number | undefined;
+  for (const [longitude, latitude] of coordinates) {
+    let relative: number;
+    if (previousRelative === undefined || previousLongitude === undefined) {
+      relative = relativeLongitude(longitude, view.centerLongitude);
+    } else {
+      relative = previousRelative + normaliseLongitude(longitude - previousLongitude);
+    }
+    previousRelative = relative;
+    previousLongitude = longitude;
+    output.push({
+      x: view.offsetX + toRadians(relative) * view.scale,
+      y: view.offsetY + mercatorY(latitude) * view.scale,
+    });
+  }
+  return output;
+}
+
+/** Kilometres represented by one pixel at a latitude in this view. */
+export function kilometresPerPixel(view: MercatorView, latitude: number) {
+  return (6371.0088 * Math.cos(toRadians(latitude))) / view.scale;
+}
+
+/** Inverse of the Mercator y projection, used to find a view's middle latitude. */
+export function latitudeAtY(y: number, view: MercatorView) {
+  const mercator = (y - view.offsetY) / view.scale;
+  return (Math.atan(Math.exp(-mercator)) * 2 - Math.PI / 2) * (180 / Math.PI);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Regional detail panels                                                      */
+/* -------------------------------------------------------------------------- */
+
+export type FootprintRegion = {
+  stops: SchematicJourneyStop[];
+  routes: SchematicJourneyRoute[];
+  coordinates: Coordinate[];
+  countries: string[];
+  journeys: number;
+};
+
+/** Groups stops whose nearest neighbour is within the threshold (single linkage). */
+export function clusterStops(stops: SchematicJourneyStop[], thresholdKm = 1000): SchematicJourneyStop[][] {
+  const parent = stops.map((_, index) => index);
+  const find = (index: number): number => {
+    while (parent[index] !== index) {
+      parent[index] = parent[parent[index]!]!;
+      index = parent[index]!;
+    }
+    return index;
+  };
+  for (let first = 0; first < stops.length; first += 1) {
+    for (let second = first + 1; second < stops.length; second += 1) {
+      if (greatCircleDistanceKm(stops[first]!.coordinate, stops[second]!.coordinate) <= thresholdKm) {
+        parent[find(first)] = find(second);
+      }
+    }
+  }
+  const groups = new Map<number, SchematicJourneyStop[]>();
+  stops.forEach((stop, index) => {
+    const root = find(index);
+    groups.set(root, [...(groups.get(root) ?? []), stop]);
+  });
+  return [...groups.values()];
+}
+
+/**
+ * Picks up to `maxRegions` compact clusters that would be cramped on the
+ * overview map. Each becomes a zoomed panel so short rail and domestic routes
+ * remain readable next to long-haul flights.
+ */
+export function planFootprintRegions(
+  map: SchematicJourneyMap,
+  overview: MercatorView,
+  options: { thresholdKm?: number; maxRegions?: number; crampedFraction?: number } = {},
+): FootprintRegion[] {
+  const clusters = clusterStops(map.stops, options.thresholdKm ?? 1000);
+  // A single cluster is already fitted by the overview itself.
+  if (clusters.length < 2) return [];
+  const crampedFraction = options.crampedFraction ?? 0.22;
+  const maxRegions = options.maxRegions ?? 3;
+
+  const regions: FootprintRegion[] = [];
+  for (const stops of clusters) {
+    if (stops.length < 2) continue;
+    const ids = new Set(stops.map((stop) => stop.id));
+    const routes = map.routes.filter((route) => ids.has(route.origin_id) && ids.has(route.destination_id));
+    const coordinates = [...stops.map((stop) => stop.coordinate), ...routes.flatMap((route) => route.coordinates)];
+    const projected = stops.map((stop) => projectMercator(stop.coordinate, overview));
+    const width = Math.max(...projected.map((point) => point.x)) - Math.min(...projected.map((point) => point.x));
+    const height = Math.max(...projected.map((point) => point.y)) - Math.min(...projected.map((point) => point.y));
+    const cramped = width < overview.frame.width * crampedFraction && height < overview.frame.height * crampedFraction * 1.6;
+    if (!cramped) continue;
+    const countries = [...new Set(stops.map((stop) => stop.country))];
+    const journeys = routes.reduce((sum, route) => sum + route.journeys, 0) + stops.reduce((sum, stop) => sum + stop.visits, 0) / 10;
+    regions.push({ stops, routes, coordinates, countries, journeys });
+  }
+
+  return regions
+    .sort((first, second) => second.journeys - first.journeys)
+    .slice(0, maxRegions)
+    .sort((first, second) => {
+      const firstX = Math.min(...first.stops.map((stop) => projectMercator(stop.coordinate, overview).x));
+      const secondX = Math.min(...second.stops.map((stop) => projectMercator(stop.coordinate, overview).x));
+      return firstX - secondX;
+    });
 }

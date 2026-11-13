@@ -15,6 +15,8 @@ export type RouteProperties = {
   destination_en: string;
   is_demo: boolean;
   route_pattern: RoutePattern;
+  origin_id: string;
+  destination_id: string;
 };
 
 export type StopProperties = {
@@ -22,6 +24,8 @@ export type StopProperties = {
   code: string;
   name_zh: string;
   name_en: string;
+  city?: string;
+  kind: Trip["origin"]["kind"];
   country: string;
   country_color: string;
   visits: number;
@@ -65,6 +69,8 @@ export function createJourneyMapData(trips: Trip[]): JourneyMapData {
         destination_en: trip.destination.name_en,
         is_demo: trip.is_demo,
         route_pattern: routePatterns.get(trip.id) ?? "one_way",
+        origin_id: trip.origin.id,
+        destination_id: trip.destination.id,
       },
       geometry: { type: "LineString", coordinates: routeCoordinates },
     });
@@ -85,6 +91,8 @@ export function createJourneyMapData(trips: Trip[]): JourneyMapData {
         code: displayPlaceCode(place) ?? "",
         name_zh: place.name_zh,
         name_en: place.name_en,
+        city: place.city,
+        kind: place.kind,
         country,
         country_color: countryColorValue,
         visits: 1,
