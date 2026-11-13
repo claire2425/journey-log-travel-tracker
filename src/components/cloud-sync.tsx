@@ -23,6 +23,18 @@ import { passwordlessEmailOptions } from "@/lib/passwordless-email";
 
 type Language = "zh" | "en";
 
+function subscribeToDisplayMode(onChange: () => void) {
+  const query = window.matchMedia("(display-mode: standalone)");
+  query.addEventListener("change", onChange);
+  return () => query.removeEventListener("change", onChange);
+}
+
+/** True when running as an installed Home Screen / desktop app rather than a browser tab. */
+function readInstalledDisplayMode() {
+  const navigatorWithStandalone = navigator as Navigator & { standalone?: boolean };
+  return window.matchMedia("(display-mode: standalone)").matches || navigatorWithStandalone.standalone === true;
+}
+
 type CloudSyncProps = {
   language: Language;
 };
@@ -43,6 +55,8 @@ const copy = {
     code: "驗證碼（如 Email 提供）",
     codePlaceholder: "若 Email 內有驗證碼，請輸入於此",
     signInEmailSent: "登入 Email 已寄到 {email}。若信內有驗證碼，請在下方輸入；若是登入連結，請在這個瀏覽器開啟它，Journey Log 會自動登入。請同時查看垃圾郵件匣。",
+    signInEmailSentInstalled: "登入 Email 已寄到 {email}。請把信裡的驗證碼輸入下方；不要點信中的連結，它會在 Safari 開啟，無法登入這個主畫面 App。請同時查看垃圾郵件匣。",
+    installedHint: "你是從主畫面 App 開啟的：請用 Email 裡的「驗證碼」登入。信中的連結會在 Safari 開啟，登入的是 Safari 而不是這個 App。",
     email: "Email",
     emailPlaceholder: "you@example.com",
     firstSync: "第一次同步會比較這台裝置與雲端的資料；同一筆旅程或帳目會以較新的修改時間為準。任何無法安全自動處理的變更都會保留，讓你決定。",
@@ -84,6 +98,8 @@ const copy = {
     code: "Verification code (if your email includes one)",
     codePlaceholder: "Enter the code only if your email includes one",
     signInEmailSent: "A sign-in email was sent to {email}. If it includes a code, enter it below; if it includes a link, open it in this browser and Journey Log will sign you in automatically. Check your spam folder too.",
+    signInEmailSentInstalled: "A sign-in email was sent to {email}. Enter the code from it below. Don't tap the link: it opens in Safari, which cannot sign in this Home Screen app. Check your spam folder too.",
+    installedHint: "You opened Journey Log from the Home Screen: sign in with the code in the email. A link in the email opens Safari, which signs in Safari rather than this app.",
     email: "Email",
     emailPlaceholder: "you@example.com",
     firstSync: "First sync compares this device with the cloud. For the same journey or expense, the newer edit is used; anything that cannot be handled safely stays for you to decide.",
@@ -154,6 +170,9 @@ export function CloudSync({ language }: CloudSyncProps) {
     () => undefined,
   );
   const [session, setSession] = useState<Session | null>(null);
+  // An installed iPhone/iPad app has storage separate from Safari, so an
+  // emailed link cannot sign it in; steer people to the code instead.
+  const isInstalledApp = useSyncExternalStore(subscribeToDisplayMode, readInstalledDisplayMode, () => false);
   const [email, setEmail] = useState("");
   const [verificationCode, setVerificationCode] = useState("");
   const [signInEmailSent, setSignInEmailSent] = useState(false);
@@ -296,7 +315,7 @@ export function CloudSync({ language }: CloudSyncProps) {
       setVerificationCode("");
       setSignInEmailSent(true);
       setResendSeconds(60);
-      setStatus(interpolate(c.signInEmailSent, { email: targetEmail }));
+      setStatus(interpolate(isInstalledApp ? c.signInEmailSentInstalled : c.signInEmailSent, { email: targetEmail }));
     } catch (error) {
       const kind: PasswordlessEmailErrorKind = classifyPasswordlessEmailError(error);
       setStatus(c.sendError[kind]);
@@ -409,6 +428,9 @@ export function CloudSync({ language }: CloudSyncProps) {
             type="email"
             value={email}
           />
+          {isInstalledApp && !signInEmailSent ? (
+            <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900 dark:bg-amber-950/50 dark:text-amber-100">{c.installedHint}</p>
+          ) : null}
           {signInEmailSent ? (
             <>
               <label className="sr-only" htmlFor="cloud-sync-code">{c.code}</label>
