@@ -9,6 +9,8 @@ multi-currency ledger for splitting travel expenses with friends. Data stays
 on the device by default, with optional private cloud sync.
 
 > 繁體中文簡介：Journey Log 是一個「資料先存在自己裝置」的旅程紀錄 App，可記錄飛行、火車／高鐵與郵輪，自動產生統計、互動路線地圖與可分享的足跡報告圖片，並內建多幣別旅伴分帳。可安裝到手機主畫面，也可選擇以 Email 驗證碼登入、在自己的裝置間私有同步。介面支援繁體中文與英文。
+>
+> 為什麼做這個：我很喜歡旅行，一直用 Flighty 記錄飛行，但它只能記飛機，火車、高鐵和郵輪都沒辦法；和朋友出遊分帳時，用過的記帳 App 又常常不直覺、還有很多廣告。所以我決定做一個自己真的會想用的工具：所有交通方式都能記在同一個地方，分帳清楚、沒有廣告，資料也留在自己手上。
 
 | Journeys & statistics | Phone (installable PWA) |
 | --- | --- |
@@ -73,12 +75,36 @@ rendering) · Supabase (Postgres, Auth, RLS) · Vitest · Vercel
 - **Privacy by design** — no third-party request is made until the person
   opts in (map tiles, exchange rates); place search runs against bundled data.
 
+## Why I built this
+
+I love travelling and have long logged my flights in Flighty, but it only
+covers flights, while many of my journeys are by train, high-speed rail or
+ship. And when splitting costs with friends on a trip, the expense apps I
+tried felt unintuitive and were full of ads. So I built the tool I actually
+wanted to use: one place for every kind of journey, a clear, ad-free way to
+settle up with friends, and a design that keeps my travel history on my own
+devices.
+
 ## How this was built
 
 This is a personal portfolio project developed with AI coding agents (OpenAI
 Codex and Anthropic Claude). I defined the product and its requirements,
 directed the design decisions, and reviewed and tested the results; the
 project rules the agents follow are in [`AGENTS.md`](AGENTS.md).
+
+Examples of decisions I made along the way:
+
+- **Scope** — one log for flights, rail and cruises, plus a shared expense
+  ledger, instead of separate apps.
+- **Privacy** — data stays on the device by default; cloud sync is opt-in and
+  private to each account, and the report images are generated in the browser.
+- **iPhone Home Screen sign-in** — after finding that emailed sign-in links
+  open in Safari rather than the installed app, switching the email to a
+  one-time code (and testing it on a real device).
+- **Design** — choosing a calm, low-saturation palette that is easy on the eyes,
+  and readable report maps that zoom to where I have actually travelled.
+- **Trade-offs** — keeping flight lookup optional after comparing data
+  providers, since the free options were limited.
 
 ## Run it locally
 
