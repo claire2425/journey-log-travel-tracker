@@ -8,9 +8,9 @@ statistics, an interactive route map and a shareable PNG recap, and includes a
 multi-currency ledger for splitting travel expenses with friends. Data stays
 on the device by default, with optional private cloud sync.
 
-> 繁體中文簡介：Journey Log 是一個「資料先存在自己裝置」的旅程紀錄 App，可記錄飛行、火車／高鐵與郵輪，自動產生統計、互動路線地圖與可分享的足跡報告圖片，並內建多幣別旅伴分帳。可安裝到手機主畫面，也可選擇以 Email 驗證碼登入、在自己的裝置間私有同步。介面支援繁體中文與英文。
+> 簡介：Journey Log 是一個「資料先存在自己裝置」的旅程紀錄 App，可記錄飛行、火車／高鐵與郵輪，他能自動產生統計、互動路線地圖與可分享的足跡報告圖片，並有內建多幣別的旅伴分帳功能。可以簡單安裝到手機主畫面，並且能選擇以 Email 驗證碼登入，使其在自己的裝置間進行私有同步。此軟體之介面支援「繁體中文」與「英文」兩種語言。
 >
-> 為什麼做這個：我很喜歡旅行，一直用 Flighty 記錄飛行，但它只能記飛機，火車、高鐵和郵輪都沒辦法；和朋友出遊分帳時，用過的記帳 App 又常常不直覺、還有很多廣告。所以我決定做一個自己真的會想用的工具：所有交通方式都能記在同一個地方，分帳清楚、沒有廣告，資料也留在自己手上。
+> 為什麼做這個 App：我是一個很喜歡旅行到四處走走的人，以往都用 Flighty 來記錄自己的飛行足跡。Flighty很好用但可惜它只能記錄航班資訊，在歐洲旅行時常搭的火車和高鐵都沒辦法顯示。和朋友出遊分帳時，每次都會下載不同的記帳 App 以方便在最後分帳，但他們往往不是不太直覺、不能自動換匯、就是有很多廣告。所以我決定做一個自己真的想使用的工具：能將所有交通方式都記在同一個地方，並且分帳清楚、沒有多餘廣告，資料也能留在自己手上的。
 
 | Journeys & statistics | Phone (installable PWA) |
 | --- | --- |
