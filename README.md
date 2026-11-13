@@ -28,6 +28,10 @@ on the device by default, with optional private cloud sync.
   with autocomplete over ~9,800 airports and 76,000+ rail stations bundled
   with the app, operator recognition from flight / train numbers, and
   time-zone-aware durations (local departure and arrival times).
+- **Flight lookup** — don't remember the flight number? Pick the route and
+  date to list that day's flights (with codeshares and an airline filter);
+  choosing one fills in the number, airline, times and aircraft. Optional,
+  powered by AeroDataBox through a server-side route.
 - **Statistics & filters** — distance, travel time, "laps of the Earth",
   countries and cities visited per year; multi-select filters by year, mode,
   continent, distance band and trip purpose, plus free-text search.
@@ -185,6 +189,21 @@ pnpm build
    request a sign-in email. Open a Magic Link in the same browser, or enter its
    verification code when the email provides one. First sync is deliberately
    opt-in.
+
+## Optional: flight lookup
+
+The journey form can list the flights on a route and date. It is hidden
+unless a server-side key is configured:
+
+1. Get an AeroDataBox API key (directly from AeroDataBox, or through the
+   RapidAPI / API.Market marketplaces) on a plan that includes API units.
+2. In Vercel (and `.env.local` for local work) set `AERODATABOX_API_KEY`. If
+   the key comes from a marketplace, also set `AERODATABOX_PROVIDER` to
+   `rapidapi` or `apimarket`. Never use a `NEXT_PUBLIC_` name for this key.
+3. Each lookup uses two requests (AeroDataBox limits a query to 12 hours);
+   results are cached for six hours. Only the two airport codes and the date
+   are sent; when the quota is used up the form says so and manual entry keeps
+   working.
 
 ## Deploy an installable private app
 

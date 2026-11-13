@@ -1,11 +1,13 @@
 "use client";
 
 import { useId, useMemo, useState, type FormEvent, type KeyboardEvent } from "react";
+import { FlightFinder } from "@/components/flight-finder";
 import { OperatorCombobox } from "@/components/operator-combobox";
 import { PlaceCombobox } from "@/components/place-combobox";
 import { displayPlaceCode } from "@/lib/place-display";
 import { buildManualTrip } from "@/lib/journey-entry";
 import { getLocalDateTimeInputValue } from "@/lib/journey-date";
+import type { FlightOption } from "@/lib/flight-schedules";
 import { identifyOperator, lookupOperator, type OperatorDirectoryEntry } from "@/lib/operator-directory";
 import { continents, PlaceSchema, tripPurposes, type Continent, type Place, type Trip, type TripMode, type TripPurpose } from "@/lib/types";
 
@@ -556,6 +558,19 @@ export function AddJourneyForm({
     }));
   }
 
+  function applyFlightOption(flight: FlightOption) {
+    const operator = flight.airline_iata ? lookupOperator(flight.airline_iata, "flight") : undefined;
+    setForm((current) => ({
+      ...current,
+      serviceNumber: flight.flight_number,
+      carrier: operator?.label ?? flight.airline_name,
+      carrierCode: operator?.code ?? flight.airline_iata ?? "",
+      departureLocal: flight.departure_local,
+      arrivalLocal: flight.arrival_local ?? current.arrivalLocal,
+      vehicleType: flight.aircraft ?? current.vehicleType,
+    }));
+  }
+
   function applySavedJourney(trip: Trip) {
     setForm((current) => ({
       ...current,
@@ -744,6 +759,14 @@ export function AddJourneyForm({
             </div>
             {purposeError ? <p className="mt-2 text-sm font-medium text-red-700 dark:text-red-300" id={purposeErrorId} role="alert">{c.choosePurpose}</p> : null}
           </fieldset>
+
+          {mode === "flight" && origin && destination ? <FlightFinder
+            destination={destination}
+            initialDate={form.departureLocal.slice(0, 10)}
+            language={language}
+            onPick={applyFlightOption}
+            origin={origin}
+          /> : null}
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
