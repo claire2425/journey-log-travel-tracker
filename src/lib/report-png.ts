@@ -124,6 +124,13 @@ function drawMetric(context: CanvasRenderingContext2D, x: number, y: number, wid
   if (detail) text(context, detail, x + 28, y + 122, { color: muted, size: 17, weight: 500 });
 }
 
+/**
+ * Section titles end at card top + 81 px (label at +43, 30 px title at +81).
+ * Content below a title starts at least SECTION_BODY_TOP from the card top so
+ * descenders, table headers and divider lines never touch the title.
+ */
+const SECTION_BODY_TOP = 122;
+
 function drawSectionTitle(context: CanvasRenderingContext2D, label: string, title: string, x: number, y: number) {
   text(context, label, x, y, { color: "#46603c", size: 16, weight: 800 });
   text(context, title, x, y + 38, { size: 30, weight: 800 });
@@ -301,13 +308,14 @@ function drawFootprintMap(
 export async function downloadTravelRecapPng(recap: TravelRecap, trips: Trip[], language: ReportLanguage) {
   const annual = recap.annual_visits.slice(0, 6);
   const recent = recap.recent_journeys.slice(0, 5);
-  const annualHeight = 122 + Math.max(annual.length, 1) * 52;
-  const recentHeight = 112 + Math.max(recent.length, 1) * 56;
+  const annualHeight = SECTION_BODY_TOP + 40 + Math.max(annual.length, 1) * 52;
+  const recentHeight = SECTION_BODY_TOP + 40 + Math.max(recent.length, 1) * 56;
   const map = createSchematicJourneyMap(trips);
   const basemap = await loadWorldBasemap();
   const footprint = planFootprintLayout(map, 80, 468, 1440);
   const modeY = 468 + footprint.height + 32;
-  const annualY = modeY + 252 + 48;
+  const modeHeight = SECTION_BODY_TOP + 160;
+  const annualY = modeY + modeHeight + 48;
   const recentY = annualY + annualHeight + 32;
   const height = recentY + recentHeight + 120;
   const labels = language === "zh" ? {
@@ -338,7 +346,7 @@ export async function downloadTravelRecapPng(recap: TravelRecap, trips: Trip[], 
 
       drawFootprintMap(context, map, footprint, basemap, language);
 
-      fillCard(context, 80, modeY, width - 160, 252);
+      fillCard(context, 80, modeY, width - 160, modeHeight);
       drawSectionTitle(context, labels.modes, labels.modesTitle, 112, modeY + 43);
       const shownModes = recap.modes.filter((entry) => entry.distance_km > 0);
       const maxDistance = Math.max(...shownModes.map((entry) => entry.distance_km), 1);
@@ -346,7 +354,7 @@ export async function downloadTravelRecapPng(recap: TravelRecap, trips: Trip[], 
         text(context, labels.noData, 112, modeY + 150, { color: muted, size: 22 });
       } else {
         shownModes.forEach((entry, index) => {
-          const rowY = modeY + 108 + index * 34;
+          const rowY = modeY + SECTION_BODY_TOP + index * 34;
           text(context, modeLabel(entry.mode, language), 112, rowY + 16, { color: ink, size: 19, weight: 700 });
           const barX = 320;
           const barWidth = 805;
@@ -366,7 +374,7 @@ export async function downloadTravelRecapPng(recap: TravelRecap, trips: Trip[], 
         ? `最新 ${annual.length} 年／共 ${recap.annual_visits.length} 年`
         : `Latest ${annual.length} of ${recap.annual_visits.length} years`;
       text(context, annualScope, 1488, annualY + 43, { color: muted, size: 16, weight: 700, align: "right" });
-      const headerY = annualY + 104;
+      const headerY = annualY + SECTION_BODY_TOP + 10;
       const columns = [112, 460, 770, 1120];
       [labels.year, labels.continent, labels.country, labels.city].forEach((label, index) => text(context, label, columns[index] ?? 112, headerY, { color: muted, size: 17, weight: 800 }));
       if (!annual.length) {
@@ -383,10 +391,10 @@ export async function downloadTravelRecapPng(recap: TravelRecap, trips: Trip[], 
       fillCard(context, 80, recentY, width - 160, recentHeight);
       drawSectionTitle(context, labels.latest, labels.latestTitle, 112, recentY + 43);
       if (!recent.length) {
-        text(context, labels.noData, 112, recentY + 124, { color: muted, size: 20 });
+        text(context, labels.noData, 112, recentY + SECTION_BODY_TOP + 26, { color: muted, size: 20 });
       } else {
         recent.forEach((entry, index) => {
-          const rowY = recentY + 107 + index * 56;
+          const rowY = recentY + SECTION_BODY_TOP + 34 + index * 56;
           const names = language === "zh" ? `${entry.origin_zh} → ${entry.destination_zh}` : `${entry.origin_en} → ${entry.destination_en}`;
           context.strokeStyle = "#e8e3da";
           context.beginPath(); context.moveTo(112, rowY - 26); context.lineTo(1488, rowY - 26); context.stroke();
@@ -405,9 +413,9 @@ export async function downloadTravelRecapPng(recap: TravelRecap, trips: Trip[], 
 
 export async function downloadExpenseReportPng(statistics: ExpenseStatistics, language: ReportLanguage) {
   const legendRows = Math.ceil(statistics.categories.length / 2);
-  const categoriesHeight = Math.max(398, 148 + legendRows * 56);
-  const membersHeight = 126 + statistics.members.length * 88;
-  const transferHeight = 118 + Math.max(statistics.transfers.length, 1) * 52;
+  const categoriesHeight = Math.max(SECTION_BODY_TOP + 2 * 136 + 48, SECTION_BODY_TOP + 40 + legendRows * 56);
+  const membersHeight = SECTION_BODY_TOP + 24 + statistics.members.length * 88;
+  const transferHeight = SECTION_BODY_TOP + 34 + Math.max(statistics.transfers.length, 1) * 52;
   const categoriesY = 420;
   const membersY = categoriesY + categoriesHeight + 32;
   const transfersY = membersY + membersHeight + 32;
@@ -433,8 +441,9 @@ export async function downloadExpenseReportPng(statistics: ExpenseStatistics, la
       fillCard(context, 80, categoriesY, width - 160, categoriesHeight);
       drawSectionTitle(context, labels.categories, labels.categoryTitle, 112, categoriesY + 43);
       const centerX = 340;
-      const centerY = categoriesY + Math.max(224, categoriesHeight / 2 + 18);
-      const radius = 142;
+      const radius = 136;
+      // Keep the donut fully below the section title (it used to touch it).
+      const centerY = categoriesY + Math.max(SECTION_BODY_TOP + radius + 8, categoriesHeight / 2 + 30);
       let start = -Math.PI / 2;
       statistics.categories.forEach((category, index) => {
         const fraction = category.amount_minor / statistics.total_spent_minor;
@@ -458,7 +467,7 @@ export async function downloadExpenseReportPng(statistics: ExpenseStatistics, la
         const column = index % 2;
         const row = Math.floor(index / 2);
         const x = legendX + column * legendColumnWidth;
-        const y = categoriesY + 121 + row * 56;
+        const y = categoriesY + SECTION_BODY_TOP + 18 + row * 56;
         const color = reportChartColors[index % reportChartColors.length] ?? "#736d63";
         context.fillStyle = color;
         roundedRect(context, x, y - 17, 18, 18, 5); context.fill();
@@ -472,7 +481,7 @@ export async function downloadExpenseReportPng(statistics: ExpenseStatistics, la
       drawSectionTitle(context, labels.members, labels.memberTitle, 112, membersY + 43);
       const maxPaid = Math.max(...statistics.members.map((member) => member.paid_minor), 1);
       statistics.members.forEach((member, index) => {
-        const y = membersY + 117 + index * 88;
+        const y = membersY + SECTION_BODY_TOP + 28 + index * 88;
         context.strokeStyle = "#e8e3da";
         context.beginPath(); context.moveTo(112, y - 30); context.lineTo(1488, y - 30); context.stroke();
         font(context, 21, 800);
@@ -490,10 +499,10 @@ export async function downloadExpenseReportPng(statistics: ExpenseStatistics, la
       fillCard(context, 80, transfersY, width - 160, transferHeight);
       drawSectionTitle(context, labels.transfers, labels.transfers, 112, transfersY + 43);
       if (!statistics.transfers.length) {
-        text(context, labels.none, 112, transfersY + 108, { color: muted, size: 20 });
+        text(context, labels.none, 112, transfersY + SECTION_BODY_TOP + 26, { color: muted, size: 20 });
       } else {
         statistics.transfers.forEach((transfer, index) => {
-          const y = transfersY + 112 + index * 52;
+          const y = transfersY + SECTION_BODY_TOP + 38 + index * 52;
           context.strokeStyle = "#e8e3da";
           context.beginPath(); context.moveTo(112, y - 27); context.lineTo(1488, y - 27); context.stroke();
           const from = memberName.get(transfer.from_member_id) ?? transfer.from_member_id;
