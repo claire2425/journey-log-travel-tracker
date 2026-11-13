@@ -33,4 +33,11 @@ describe("bundled global place data", () => {
     expect(stations.length).toBeGreaterThan(70_000);
     expect(tokyo?.aliases).toContain("東京駅");
   });
+
+  it("never shows a Chinese name glued to a Latin place name", async () => {
+    const places = [...await readData("global-airports.json"), ...await readData("global-stations.json")];
+    const malformed = places.filter((place) => /[\u3400-\u9fff]/.test(place.name_zh) && /[a-z]/.test(place.name_zh));
+    expect(malformed.map((place) => `${place.code} ${place.name_zh}`)).toEqual([]);
+    expect(places.find((place) => place.code === "TPE")?.name_zh).toBe("臺灣桃園國際機場");
+  });
 });

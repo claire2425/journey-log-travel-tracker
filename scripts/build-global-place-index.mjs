@@ -112,8 +112,26 @@ function normalizedUnique(values) {
     });
 }
 
+/**
+ * Returns a usable Chinese display name from a source name, or undefined.
+ * Source keyword fields sometimes join several names ("Dayuan District.
+ * 臺灣桃園國際機場") or mix a Latin place name with Japanese ("Bridgend駅").
+ * A segment is accepted when it has Han text and Latin letters, if any, are
+ * only short upper-case abbreviations such as JR or TGV.
+ */
+function cleanChineseName(value) {
+  return value
+    .split(/[.;；。]\s*/)
+    .map((segment) => segment.trim())
+    .find((segment) => /[\u3400-\u9fff]/.test(segment) && !/[a-z]/.test(segment) && !/[A-Z]{5,}/.test(segment));
+}
+
 function firstChineseName(values) {
-  return values.find((value) => /[\u3400-\u9fff]/.test(value));
+  for (const value of values) {
+    const cleaned = cleanChineseName(value);
+    if (cleaned) return cleaned;
+  }
+  return undefined;
 }
 
 function continentFor(code) {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { REFERENCE_PLACES } from "@/lib/demo-trips";
-import { searchPlaces } from "@/lib/place-search";
+import { placeIdentityKey, searchPlaces } from "@/lib/place-search";
 import type { SearchablePlace } from "@/lib/place-search";
 
 const airports = REFERENCE_PLACES.filter((place) => place.kind === "airport");
@@ -40,5 +40,17 @@ describe("local place search", () => {
     };
     expect(searchPlaces([songshan], "RCSS")[0]?.code).toBe("TSA");
     expect(searchPlaces([songshan], "台北松山")[0]?.name_zh).toBe("臺北松山機場");
+  });
+});
+
+describe("placeIdentityKey", () => {
+  it("merges the same airport from saved, bundled and global lists", () => {
+    expect(placeIdentityKey({ id: "tpe", kind: "airport", code: "TPE" }))
+      .toBe(placeIdentityKey({ id: "airport:ourairports:RCTP", kind: "airport", code: "tpe" }));
+  });
+
+  it("keeps generated station codes and custom places apart by id", () => {
+    expect(placeIdentityKey({ id: "station:geonames:1", kind: "station", code: "STN-1" })).toBe("id:station:geonames:1");
+    expect(placeIdentityKey({ id: "custom-a", kind: "custom", code: "HOME" })).not.toBe(placeIdentityKey({ id: "custom-b", kind: "custom", code: "HOME" }));
   });
 });

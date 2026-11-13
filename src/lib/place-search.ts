@@ -58,3 +58,15 @@ function placeScore(place: SearchablePlace, needle: string): number | undefined 
   if ([code, nameZh, nameEn, city, country].some((value) => value.includes(needle))) return 4;
   return undefined;
 }
+
+/**
+ * Identity used to merge saved, bundled and global search results. Real
+ * airport / station codes identify one place regardless of which list it came
+ * from; generated codes (for example GeoNames "STN-…" stations) and custom
+ * places fall back to their record id.
+ */
+export function placeIdentityKey(place: Pick<Place, "id" | "kind" | "code">): string {
+  const code = place.code.trim().toUpperCase();
+  if (place.kind !== "custom" && code && !code.startsWith("STN-")) return `${place.kind}:${code}`;
+  return `id:${place.id}`;
+}

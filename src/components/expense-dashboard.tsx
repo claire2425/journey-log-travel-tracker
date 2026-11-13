@@ -1,5 +1,6 @@
 "use client";
 
+import { useLanguagePreference } from "@/lib/language-preference";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { AppNavigation } from "@/components/app-navigation";
 import { ExpenseAnalytics } from "@/components/expense-analytics";
@@ -35,7 +36,7 @@ type ExpenseForm = {
 
 const copy = {
   zh: {
-    eyebrow: "TRAVEL SPLIT", title: "旅伴記帳", local: "本機儲存，可私有同步", language: "EN",
+    eyebrow: "TRAVEL SPLIT", title: "旅伴記帳", local: "本機儲存，可私有同步",
     subtitle: "以一種結算幣別整合旅行支出；每筆仍保留原始付款幣別和確認時的匯率快照。",
     members: "旅伴", memberHint: "加入所有會一起分帳的人；付款人也要先加入。", memberPlaceholder: "輸入旅伴名字", add: "新增",
     categories: "支出類別", categoryHint: "可加入自己的類別，例如咖啡、伴手禮或租車。", categoryPlaceholder: "新增類別", remove: "移除",
@@ -48,7 +49,7 @@ const copy = {
     cannotRemoveMember: "這位旅伴已出現在帳目中，為保留結算紀錄，目前不能移除。", cannotRemoveCategory: "這個類別已被帳目使用，為保留歷史紀錄，目前不能移除。", enterMember: "請先輸入旅伴名字。", duplicateMember: "這位旅伴已經在帳本中。", enterCategory: "請先輸入類別名稱。", duplicateCategory: "這個類別已經存在。", invalidExpense: "請完整填寫名稱、金額、幣別、付款人和至少一位分攤者。", invalidMoney: "金額格式不正確，或小數位數不符合此幣別。", addedMember: "已新增旅伴。", addedCategory: "已新增類別。", addedExpense: "已加入帳目，結算已更新。", removed: "已移除。", loading: "正在讀取旅伴帳本⋯", storageError: "無法讀取本機帳本。請重新整理後再試一次。", ledgerError: "帳目資料有不一致之處，請檢查旅伴和支出資料。",
   },
   en: {
-    eyebrow: "TRAVEL SPLIT", title: "Travel split", local: "Local-first, private sync ready", language: "繁中",
+    eyebrow: "TRAVEL SPLIT", title: "Travel split", local: "Local-first, private sync ready",
     subtitle: "Settle travel spending in one chosen currency while preserving every original payment and its confirmed exchange-rate snapshot.",
     members: "Travellers", memberHint: "Add everyone who may share costs. A payer must be added first.", memberPlaceholder: "Traveller name", add: "Add",
     categories: "Expense categories", categoryHint: "Add your own categories, such as coffee, souvenirs, or car hire.", categoryPlaceholder: "New category", remove: "Remove",
@@ -74,10 +75,19 @@ function blankExpenseForm(settings: ExpenseLedgerSettings): ExpenseForm {
   return { title: "", category: settings.categories[0] ?? "", amount: "", currency: settings.settlement_currency ?? "TWD", paidBy: settings.members[0]?.id ?? "", participantIds: settings.members.map((member) => member.id), date: today(), notes: "", conversionMode: "automatic", rate: "", rateDate: "", quotedAt: "", provider: "", rateTarget: "" };
 }
 
-function synchroniseExpenseForm(current: ExpenseForm | null, settings: ExpenseLedgerSettings): ExpenseForm {
+function synchroniseExpenseForm(
+  current: ExpenseForm | null,
+  settings: ExpenseLedgerSettings,
+  previousMemberIds?: ReadonlySet<string>,
+): ExpenseForm {
   if (!current) return blankExpenseForm(settings);
   const memberIds = new Set(settings.members.map((member) => member.id));
-  const participantIds = current.participantIds.filter((id) => memberIds.has(id));
+  // A travel companion added after the form opened shares new expenses by
+  // default, like everyone who was already there.
+  const addedMemberIds = previousMemberIds
+    ? settings.members.map((member) => member.id).filter((id) => !previousMemberIds.has(id) && !current.participantIds.includes(id))
+    : [];
+  const participantIds = [...current.participantIds, ...addedMemberIds].filter((id) => memberIds.has(id));
   return { ...current, category: settings.categories.includes(current.category) ? current.category : (settings.categories[0] ?? ""), paidBy: memberIds.has(current.paidBy) ? current.paidBy : (settings.members[0]?.id ?? ""), participantIds: participantIds.length ? participantIds : settings.members.map((member) => member.id) };
 }
 
@@ -124,7 +134,7 @@ async function getAutomaticRate(from: string, to: string, date: string): Promise
 }
 
 export function ExpenseDashboard() {
-  const [language, setLanguage] = useState<Language>("zh");
+  const [language, setLanguage] = useLanguagePreference();
   const [settings, setSettings] = useState<ExpenseLedgerSettings | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [expenseForm, setExpenseForm] = useState<ExpenseForm | null>(null);
@@ -185,7 +195,8 @@ export function ExpenseDashboard() {
     try {
       const saved = await saveExpenseLedgerSettings(next);
       setSettings(saved);
-      setExpenseForm((current) => synchroniseExpenseForm(current, saved));
+      const previousMemberIds = new Set((settings?.members ?? []).map((member) => member.id));
+      setExpenseForm((current) => synchroniseExpenseForm(current, saved, previousMemberIds));
       setStatus(message);
       setStorageIssue(false);
     } catch { setStorageIssue(true); setStatus(c.storageError); }
@@ -324,7 +335,7 @@ export function ExpenseDashboard() {
   return <main className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
     <div className="mx-auto max-w-6xl px-5 py-8 sm:px-8 sm:py-12">
       <header className="border-b border-slate-200 pb-8 dark:border-slate-800">
-        <div className="flex flex-wrap items-start justify-between gap-5"><div className="max-w-2xl"><p className="text-xs font-bold tracking-[0.22em] text-teal-700 dark:text-teal-300">{c.eyebrow}</p><h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">{c.title}</h1><p className="mt-4 text-base leading-7 text-slate-600 dark:text-slate-300">{c.subtitle}</p></div><div className="flex items-center gap-3"><span className="rounded-full border border-teal-200 bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-800 dark:border-teal-800 dark:bg-teal-950 dark:text-teal-200">{c.local}</span><button className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600 transition hover:border-teal-600 hover:text-teal-700 dark:border-slate-700 dark:text-slate-300" onClick={() => setLanguage((value) => value === "zh" ? "en" : "zh")} type="button">{c.language}</button></div></div>
+        <div className="flex flex-wrap items-start justify-between gap-5"><div className="max-w-2xl"><p className="text-xs font-bold tracking-[0.22em] text-teal-700 dark:text-teal-300">{c.eyebrow}</p><h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">{c.title}</h1><p className="mt-4 text-base leading-7 text-slate-600 dark:text-slate-300">{c.subtitle}</p></div><div className="flex items-center gap-3"><span className="rounded-full border border-teal-200 bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-800 dark:border-teal-800 dark:bg-teal-950 dark:text-teal-200">{c.local}</span><div className="flex rounded-xl border border-slate-200 p-1 dark:border-slate-700" aria-label={language === "zh" ? "介面語言" : "Interface language"} role="group">{(["zh", "en"] as Language[]).map((item) => <button aria-pressed={language === item} className={`rounded-lg px-2.5 py-1 text-xs font-bold ${language === item ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "text-slate-500"}`} key={item} onClick={() => setLanguage(item)} type="button">{item === "zh" ? "繁中" : "EN"}</button>)}</div></div></div>
         <div className="mt-6"><AppNavigation current="expenses" language={language} /></div>
       </header>
 

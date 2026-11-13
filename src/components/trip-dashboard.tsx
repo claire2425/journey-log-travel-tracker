@@ -1,5 +1,6 @@
 "use client";
 
+import { useLanguagePreference } from "@/lib/language-preference";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AddJourneyForm } from "@/components/add-journey-form";
 import { AppNavigation } from "@/components/app-navigation";
@@ -355,7 +356,7 @@ function TripCard({ trip, language, onDelete, onEdit }: { trip: Trip; language: 
   const distanceBand = getTripDistanceBand(trip);
 
   return (
-    <article className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-700 dark:bg-slate-900">
+    <article className="min-w-0 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-700 dark:bg-slate-900">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <span className="rounded-full border bg-white px-3 py-1 text-xs font-bold dark:bg-slate-950" style={{ borderColor: transportColor, color: transportColor }}>{modeLabels[language][trip.mode]}</span>
@@ -381,8 +382,8 @@ function TripCard({ trip, language, onDelete, onEdit }: { trip: Trip; language: 
 
       <div className="mt-5 grid grid-cols-3 gap-3 border-t border-slate-100 pt-4 text-sm dark:border-slate-800">
         <div className="flex min-w-0 gap-2"><CarrierMark trip={trip} /><div className="min-w-0"><p className="truncate text-slate-500">{trip.carrier || "—"}</p><p className="mt-1 truncate font-semibold text-slate-800 dark:text-slate-200">{trip.service_number || "—"}</p></div></div>
-        <div><p className="text-slate-500">{language === "zh" ? "距離" : "Distance"}</p><p className="mt-1 font-semibold text-slate-800 dark:text-slate-200">{number} km</p></div>
-        <div><p className="text-slate-500">{language === "zh" ? "時間" : "Time"}</p><p className="mt-1 font-semibold text-slate-800 dark:text-slate-200">{formatDuration(trip.duration_min, language)}</p></div>
+        <div className="min-w-0"><p className="text-slate-500">{language === "zh" ? "距離" : "Distance"}</p><p className="mt-1 break-words font-semibold text-slate-800 dark:text-slate-200">{number} km</p></div>
+        <div className="min-w-0"><p className="text-slate-500">{language === "zh" ? "時間" : "Time"}</p><p className="mt-1 break-words font-semibold text-slate-800 dark:text-slate-200">{formatDuration(trip.duration_min, language)}</p></div>
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
@@ -399,7 +400,7 @@ function TripCard({ trip, language, onDelete, onEdit }: { trip: Trip; language: 
 }
 
 export function TripDashboard() {
-  const [language, setLanguage] = useState<Language>("zh");
+  const [language, setLanguage] = useLanguagePreference();
   const [filters, setFilters] = useState<TripFilters>({});
   const [trips, setTrips] = useState<Trip[]>([]);
   const [allTrips, setAllTrips] = useState<Trip[]>([]);
@@ -751,7 +752,7 @@ export function TripDashboard() {
           {isLoading ? <p className="py-14 text-center text-slate-500">{c.loading}</p> : null}
           {!isLoading && allTrips.length === 0 ? <EmptyState title={c.emptyTitle} body={c.emptyBody} /> : null}
           {!isLoading && allTrips.length > 0 && trips.length === 0 ? <EmptyState title={c.noResultsTitle} body={c.noResultsBody} /> : null}
-          {!isLoading && trips.length > 0 ? <div className="grid gap-4 lg:grid-cols-2">{trips.map((trip) => <TripCard key={trip.id} language={language} onDelete={(item) => void handleDeleteJourney(item)} onEdit={handleEditJourney} trip={trip} />)}</div> : null}
+          {!isLoading && trips.length > 0 ? <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">{trips.map((trip) => <TripCard key={trip.id} language={language} onDelete={(item) => void handleDeleteJourney(item)} onEdit={handleEditJourney} trip={trip} />)}</div> : null}
         </section>
 
         <section className="mt-8 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900" aria-labelledby="saved-places-title">

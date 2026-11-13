@@ -581,6 +581,10 @@ export function AddJourneyForm({
       return;
     }
 
+    // A recognised flight / train number fills an empty operator automatically,
+    // so "BR198" is saved with EVA Air even if the suggestion was not clicked.
+    const autoOperator = !form.carrier.trim() && !form.carrierCode.trim() ? detectedOperator : undefined;
+
     let trip: Trip;
     try {
       trip = buildManualTrip({
@@ -591,8 +595,8 @@ export function AddJourneyForm({
         destination,
         departureLocal: form.departureLocal,
         arrivalLocal: form.arrivalLocal,
-        carrier: form.carrier,
-        carrierCode: form.carrierCode,
+        carrier: autoOperator?.label ?? form.carrier,
+        carrierCode: autoOperator?.code ?? form.carrierCode,
         carrierLogoUrl: editingTrip?.carrier_logo_url,
         serviceNumber: form.serviceNumber,
         seatClass: form.seatClass,

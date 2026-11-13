@@ -47,7 +47,12 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const response = await fetch(`https://api.frankfurter.dev/v2/rate/${encodeURIComponent(from)}/${encodeURIComponent(to)}?date=${encodeURIComponent(date)}`, {
+    // Expenses are often logged ahead of a trip (a prepaid hotel, a rail
+    // pass). No reference rate exists for a future date yet, so use the latest
+    // published one; its own rate_date is returned and shown with the quote.
+    const isFutureDate = date > new Date().toISOString().slice(0, 10);
+    const query = isFutureDate ? "" : `?date=${encodeURIComponent(date)}`;
+    const response = await fetch(`https://api.frankfurter.dev/v2/rate/${encodeURIComponent(from)}/${encodeURIComponent(to)}${query}`, {
       cache: "no-store",
       signal: AbortSignal.timeout(8000),
     });

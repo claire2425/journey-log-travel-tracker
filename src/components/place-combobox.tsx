@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useState, type FocusEvent, type KeyboardEvent } from "react";
 import { displayPlaceCode } from "@/lib/place-display";
-import { searchPlaces } from "@/lib/place-search";
+import { placeIdentityKey, searchPlaces } from "@/lib/place-search";
 import type { Place } from "@/lib/types";
 
 type PlaceComboboxProps = {
@@ -60,9 +60,12 @@ export function PlaceCombobox({
   const [searchError, setSearchError] = useState(false);
   const localSuggestions = useMemo(() => searchPlaces(places, value), [places, value]);
   const suggestions = useMemo(() => {
+    // Saved / bundled places come first and win over a global record for the
+    // same airport or station code, so "TPE" is not listed twice.
     const uniquePlaces = new Map<string, Place>();
     for (const place of [...localSuggestions, ...globalPlaces]) {
-      uniquePlaces.set(place.id, place);
+      const key = placeIdentityKey(place);
+      if (!uniquePlaces.has(key)) uniquePlaces.set(key, place);
     }
     return [...uniquePlaces.values()].slice(0, 8);
   }, [globalPlaces, localSuggestions]);
