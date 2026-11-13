@@ -18,11 +18,11 @@ import type { TripMode } from "@/lib/types";
 export type MapLanguage = "zh" | "en";
 
 const FONT_STACK = `-apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC", "Noto Sans CJK TC", "Segoe UI", sans-serif`;
-const INK = "#0f172a";
-const OCEAN_TOP = "#d7e8f2";
-const OCEAN_BOTTOM = "#e7f0f5";
-const LAND = "#f6f3ec";
-const LAND_BORDER = "#cfd3c6";
+const INK = "#26241f";
+const OCEAN_TOP = "#d9e3e4";
+const OCEAN_BOTTOM = "#e5ebea";
+const LAND = "#f7f4ee";
+const LAND_BORDER = "#d6cfc2";
 const GRATICULE = "rgba(255, 255, 255, 0.55)";
 
 export const ROUTE_DASH: Record<TripMode, number[]> = {
@@ -54,7 +54,7 @@ function hexToRgba(hex: string, alpha: number) {
   const value = hex.replace("#", "");
   const full = value.length === 3 ? value.split("").map((part) => part + part).join("") : value;
   const number = Number.parseInt(full, 16);
-  if (Number.isNaN(number)) return `rgba(100, 116, 139, ${alpha})`;
+  if (Number.isNaN(number)) return `rgba(115, 109, 99, ${alpha})`;
   return `rgba(${(number >> 16) & 255}, ${(number >> 8) & 255}, ${number & 255}, ${alpha})`;
 }
 
@@ -324,7 +324,7 @@ function drawStops(
     context.beginPath();
     context.arc(point.x, point.y, radius + 2.6, 0, Math.PI * 2);
     context.fillStyle = "#ffffff";
-    context.shadowColor = "rgba(15, 23, 42, 0.25)";
+    context.shadowColor = "rgba(38, 36, 31, 0.25)";
     context.shadowBlur = 4;
     context.fill();
     context.shadowBlur = 0;
@@ -415,7 +415,7 @@ function drawScaleBar(context: CanvasRenderingContext2D, view: MercatorView) {
   context.fillStyle = "rgba(255, 255, 255, 0.82)";
   roundedRectPath(context, x - 10, y - 30, boxWidth, 38, 9);
   context.fill();
-  context.strokeStyle = "#334155";
+  context.strokeStyle = "#4b463f";
   context.lineWidth = 2;
   context.beginPath();
   context.moveTo(x, y - 9);
@@ -423,7 +423,7 @@ function drawScaleBar(context: CanvasRenderingContext2D, view: MercatorView) {
   context.lineTo(x + width, y - 4);
   context.lineTo(x + width, y - 9);
   context.stroke();
-  context.fillStyle = "#334155";
+  context.fillStyle = "#4b463f";
   context.textAlign = "left";
   context.textBaseline = "alphabetic";
   context.fillText(label, x, y - 14);
@@ -458,7 +458,7 @@ function drawRegionOutlines(context: CanvasRenderingContext2D, regions: Footprin
     const y = centerY - height / 2;
     context.save();
     context.setLineDash([6, 5]);
-    context.strokeStyle = "rgba(15, 23, 42, 0.6)";
+    context.strokeStyle = "rgba(38, 36, 31, 0.6)";
     context.lineWidth = 1.6;
     roundedRectPath(context, x, y, width, height, 12);
     context.stroke();
@@ -509,7 +509,7 @@ export function drawMapPanel(context: CanvasRenderingContext2D, options: MapPane
   drawScaleBar(context, view);
   context.restore();
 
-  context.strokeStyle = "#c5d6e2";
+  context.strokeStyle = "#d3d9d4";
   context.lineWidth = 1;
   roundedRectPath(context, frame.x, frame.y, frame.width, frame.height, radius);
   context.stroke();

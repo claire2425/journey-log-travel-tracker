@@ -25,13 +25,13 @@ import type { Trip, TripMode } from "@/lib/types";
 
 export type ReportLanguage = "zh" | "en";
 
-export const reportChartColors = ["#0f766e", "#2563eb", "#d97706", "#9333ea", "#dc2626", "#0891b2", "#4f46e5", "#65a30d", "#db2777", "#64748b"];
+export const reportChartColors = ["#5e7f4e", "#4a6f8f", "#b06f4e", "#7e6c9a", "#b85c68", "#3d7a8a", "#c9a25a", "#7f8f3a", "#a0786a", "#736d63"];
 
-const ink = "#0f172a";
-const muted = "#64748b";
-const border = "#dbe4ef";
-const surface = "#ffffff";
-const page = "#f8fafc";
+const ink = "#26241f";
+const muted = "#736d63";
+const border = "#e3ded5";
+const surface = "#fcfbf8";
+const page = "#f3f0ea";
 
 function locale(language: ReportLanguage) {
   return language === "zh" ? "zh-TW" : "en-GB";
@@ -110,7 +110,7 @@ function modeLabel(mode: TripMode, language: ReportLanguage) {
 }
 
 function drawHeader(context: CanvasRenderingContext2D, language: ReportLanguage, eyebrow: string, title: string, subtitle: string) {
-  text(context, "JOURNEY LOG", 80, 82, { color: "#0f766e", size: 22, weight: 800 });
+  text(context, "JOURNEY LOG", 80, 82, { color: "#46603c", size: 22, weight: 800 });
   text(context, title, 80, 143, { size: 48, weight: 800 });
   text(context, subtitle, 80, 184, { color: muted, size: 23, weight: 500 });
   text(context, eyebrow, 1520, 82, { color: muted, size: 18, weight: 700, align: "right" });
@@ -125,7 +125,7 @@ function drawMetric(context: CanvasRenderingContext2D, x: number, y: number, wid
 }
 
 function drawSectionTitle(context: CanvasRenderingContext2D, label: string, title: string, x: number, y: number) {
-  text(context, label, x, y, { color: "#0f766e", size: 16, weight: 800 });
+  text(context, label, x, y, { color: "#46603c", size: 16, weight: 800 });
   text(context, title, x, y + 38, { size: 30, weight: 800 });
 }
 
@@ -350,7 +350,7 @@ export async function downloadTravelRecapPng(recap: TravelRecap, trips: Trip[], 
           text(context, modeLabel(entry.mode, language), 112, rowY + 16, { color: ink, size: 19, weight: 700 });
           const barX = 320;
           const barWidth = 805;
-          context.fillStyle = "#e2e8f0";
+          context.fillStyle = "#e8e3da";
           roundedRect(context, barX, rowY, barWidth, 18, 9);
           context.fill();
           context.fillStyle = modeColor(entry.mode);
@@ -374,7 +374,7 @@ export async function downloadTravelRecapPng(recap: TravelRecap, trips: Trip[], 
       } else {
         annual.forEach((entry, index) => {
           const rowY = headerY + 42 + index * 52;
-          context.strokeStyle = "#e2e8f0";
+          context.strokeStyle = "#e8e3da";
           context.beginPath(); context.moveTo(112, rowY - 26); context.lineTo(1488, rowY - 26); context.stroke();
           [String(entry.year), String(entry.continents), String(entry.countries), String(entry.cities)].forEach((value, column) => text(context, value, columns[column] ?? 112, rowY + 6, { size: 21, weight: column === 0 ? 800 : 600 }));
         });
@@ -388,7 +388,7 @@ export async function downloadTravelRecapPng(recap: TravelRecap, trips: Trip[], 
         recent.forEach((entry, index) => {
           const rowY = recentY + 107 + index * 56;
           const names = language === "zh" ? `${entry.origin_zh} → ${entry.destination_zh}` : `${entry.origin_en} → ${entry.destination_en}`;
-          context.strokeStyle = "#e2e8f0";
+          context.strokeStyle = "#e8e3da";
           context.beginPath(); context.moveTo(112, rowY - 26); context.lineTo(1488, rowY - 26); context.stroke();
           text(context, entry.departure_date, 112, rowY + 4, { color: muted, size: 18, weight: 700 });
           font(context, 21, 800);
@@ -443,7 +443,7 @@ export async function downloadExpenseReportPng(statistics: ExpenseStatistics, la
         context.moveTo(centerX, centerY);
         context.arc(centerX, centerY, radius, start, end);
         context.closePath();
-        context.fillStyle = reportChartColors[index % reportChartColors.length] ?? "#64748b";
+        context.fillStyle = reportChartColors[index % reportChartColors.length] ?? "#736d63";
         context.fill();
         start = end;
       });
@@ -459,7 +459,7 @@ export async function downloadExpenseReportPng(statistics: ExpenseStatistics, la
         const row = Math.floor(index / 2);
         const x = legendX + column * legendColumnWidth;
         const y = categoriesY + 121 + row * 56;
-        const color = reportChartColors[index % reportChartColors.length] ?? "#64748b";
+        const color = reportChartColors[index % reportChartColors.length] ?? "#736d63";
         context.fillStyle = color;
         roundedRect(context, x, y - 17, 18, 18, 5); context.fill();
         font(context, 18, 800);
@@ -473,18 +473,18 @@ export async function downloadExpenseReportPng(statistics: ExpenseStatistics, la
       const maxPaid = Math.max(...statistics.members.map((member) => member.paid_minor), 1);
       statistics.members.forEach((member, index) => {
         const y = membersY + 117 + index * 88;
-        context.strokeStyle = "#e2e8f0";
+        context.strokeStyle = "#e8e3da";
         context.beginPath(); context.moveTo(112, y - 30); context.lineTo(1488, y - 30); context.stroke();
         font(context, 21, 800);
         text(context, fitText(context, member.name, 230), 112, y, { size: 21, weight: 800 });
         text(context, labels.paid, 390, y - 12, { color: muted, size: 15, weight: 800 });
-        context.fillStyle = "#dbeafe";
+        context.fillStyle = "#dce5ec";
         roundedRect(context, 390, y, 420, 16, 8); context.fill();
-        context.fillStyle = "#2563eb";
+        context.fillStyle = "#5f7f94";
         roundedRect(context, 390, y, Math.max(member.paid_minor > 0 ? 8 : 0, (member.paid_minor / maxPaid) * 420), 16, 8); context.fill();
         text(context, money(member.paid_minor), 840, y + 14, { size: 18, weight: 800 });
         text(context, `${labels.share}: ${money(member.share_minor)}`, 1030, y - 5, { color: muted, size: 17, weight: 700 });
-        text(context, `${labels.net}: ${member.net_minor >= 0 ? "+" : "−"}${money(Math.abs(member.net_minor))}`, 1030, y + 23, { color: member.net_minor >= 0 ? "#0f766e" : "#b45309", size: 17, weight: 800 });
+        text(context, `${labels.net}: ${member.net_minor >= 0 ? "+" : "−"}${money(Math.abs(member.net_minor))}`, 1030, y + 23, { color: member.net_minor >= 0 ? "#46603c" : "#93693a", size: 17, weight: 800 });
       });
 
       fillCard(context, 80, transfersY, width - 160, transferHeight);
@@ -494,13 +494,13 @@ export async function downloadExpenseReportPng(statistics: ExpenseStatistics, la
       } else {
         statistics.transfers.forEach((transfer, index) => {
           const y = transfersY + 112 + index * 52;
-          context.strokeStyle = "#e2e8f0";
+          context.strokeStyle = "#e8e3da";
           context.beginPath(); context.moveTo(112, y - 27); context.lineTo(1488, y - 27); context.stroke();
           const from = memberName.get(transfer.from_member_id) ?? transfer.from_member_id;
           const to = memberName.get(transfer.to_member_id) ?? transfer.to_member_id;
           font(context, 20, 800);
           text(context, fitText(context, `${from} ${labels.pays} ${to}`, 1080), 112, y + 2, { size: 20, weight: 800 });
-          text(context, money(transfer.amount_minor), 1488, y + 2, { color: "#0f766e", size: 20, weight: 800, align: "right" });
+          text(context, money(transfer.amount_minor), 1488, y + 2, { color: "#46603c", size: 20, weight: 800, align: "right" });
         });
       }
       text(context, labels.note, 80, height - 47, { color: muted, size: 16, weight: 500 });

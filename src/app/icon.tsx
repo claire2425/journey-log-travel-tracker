@@ -25,7 +25,7 @@ export default async function Icon({ id }: { id: Promise<string> }) {
       <div
         style={{
           alignItems: "center",
-          background: "#0f172a",
+          background: "#26241f",
           display: "flex",
           height: "100%",
           justifyContent: "center",
@@ -36,8 +36,8 @@ export default async function Icon({ id }: { id: Promise<string> }) {
         <div
           style={{
             alignItems: "center",
-            background: "#0f766e",
-            border: `${24 * scale}px solid #99f6e4`,
+            background: "#46603c",
+            border: `${24 * scale}px solid #c7d3bc`,
             borderRadius: "50%",
             display: "flex",
             height: 352 * scale,
@@ -61,7 +61,7 @@ export default async function Icon({ id }: { id: Promise<string> }) {
         </div>
         <div
           style={{
-            background: "#fbbf24",
+            background: "#c9a25a",
             border: `${12 * scale}px solid #ffffff`,
             borderRadius: "50%",
             bottom: 86 * scale,

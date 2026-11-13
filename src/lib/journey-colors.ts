@@ -2,17 +2,17 @@ import type { TripMode } from "@/lib/types";
 
 /** Shared transport colours for map routes, legends, and journey cards. */
 export const MODE_COLORS: Record<TripMode, string> = {
-  flight: "#0f766e",
-  rail: "#2563eb",
-  cruise: "#d97706",
-  other: "#7c3aed",
+  flight: "#4a6f8f",
+  rail: "#5e7f4e",
+  cruise: "#b06f4e",
+  other: "#7e6c9a",
 };
 
 const KNOWN_COUNTRY_COLORS: Record<string, string> = {
-  taiwan: "#db2777",
-  japan: "#7e22ce",
-  "united kingdom": "#0284c7",
-  france: "#16a34a",
+  taiwan: "#b85c68",
+  japan: "#8268a0",
+  "united kingdom": "#3d7a8a",
+  france: "#7f8f3a",
 };
 
 function countryKey(country: string) {
@@ -60,5 +60,7 @@ export function countryColor(country: string) {
   if (knownColor) return knownColor;
 
   const hash = colorHash(key || "unknown");
-  return hslToHex(hash % 360, (64 + ((hash >>> 9) % 16)) / 100, (34 + ((hash >>> 15) % 13)) / 100);
+  // Muted, mid-dark tones to match the low-saturation palette while staying
+  // distinguishable on maps and legible as small dots.
+  return hslToHex(hash % 360, (32 + ((hash >>> 9) % 16)) / 100, (38 + ((hash >>> 15) % 10)) / 100);
 }

@@ -1,18 +1,119 @@
 @import "tailwindcss";
 @import "maplibre-gl/dist/maplibre-gl.css";
 
+/*
+ * Palette "生成り × 灰綠" (unbleached cloth and grey-green): a low-saturation,
+ * Japanese-inspired scheme chosen to be easy on the eyes. Components keep
+ * using Tailwind's familiar colour names; the scales are redefined here so
+ * the whole app changes in one place.
+ *
+ * slate  -> warm ink greys (墨・鼠)        teal  -> grey-green (松葉・灰綠)
+ * amber  -> mustard (芥子・山吹)          red   -> red ochre (弁柄)
+ * rose   -> plum blossom (紅梅)            violet -> wisteria grey (藤鼠)
+ * blue   -> misty indigo (縹・霧藍)
+ * Text on the lightest fills stays at WCAG AA contrast or better.
+ */
+@theme {
+  --color-white: #fcfbf8;
+
+  --color-slate-50: #f7f5f0;
+  --color-slate-100: #efece5;
+  --color-slate-200: #e3ded5;
+  --color-slate-300: #cfc8bc;
+  --color-slate-400: #a39c90;
+  --color-slate-500: #736d63;
+  --color-slate-600: #5b564d;
+  --color-slate-700: #46423b;
+  --color-slate-800: #34312c;
+  --color-slate-900: #26241f;
+  --color-slate-950: #1a1916;
+
+  --color-teal-50: #f1f4ee;
+  --color-teal-100: #e1e8da;
+  --color-teal-200: #c7d3bc;
+  --color-teal-300: #a7b998;
+  --color-teal-400: #879c76;
+  --color-teal-500: #6b815c;
+  --color-teal-600: #57704a;
+  --color-teal-700: #46603c;
+  --color-teal-800: #3a4f33;
+  --color-teal-900: #2f402a;
+  --color-teal-950: #1c2719;
+
+  --color-amber-50: #faf5ea;
+  --color-amber-100: #f3e8cf;
+  --color-amber-200: #e8d3a6;
+  --color-amber-300: #d9b977;
+  --color-amber-400: #c9a25a;
+  --color-amber-500: #b3884a;
+  --color-amber-600: #93693a;
+  --color-amber-700: #78532f;
+  --color-amber-800: #5f4227;
+  --color-amber-900: #4b3520;
+  --color-amber-950: #2c1f12;
+
+  --color-red-50: #faf0ec;
+  --color-red-100: #f3dcd3;
+  --color-red-200: #e8bbad;
+  --color-red-300: #d99482;
+  --color-red-400: #c7705c;
+  --color-red-500: #b05845;
+  --color-red-600: #964636;
+  --color-red-700: #7b392d;
+  --color-red-800: #642f26;
+  --color-red-900: #4f2620;
+  --color-red-950: #2d1410;
+
+  --color-rose-50: #fbf0f0;
+  --color-rose-100: #f5dcdd;
+  --color-rose-200: #ebbdbf;
+  --color-rose-300: #dc979b;
+  --color-rose-400: #c97479;
+  --color-rose-500: #b3595f;
+  --color-rose-600: #97474d;
+  --color-rose-700: #7c3a40;
+  --color-rose-800: #653137;
+  --color-rose-900: #52292e;
+  --color-rose-950: #2e1518;
+
+  --color-violet-50: #f4f2f7;
+  --color-violet-100: #e7e2ee;
+  --color-violet-200: #d2c9df;
+  --color-violet-300: #b6a9c9;
+  --color-violet-400: #9a8bb2;
+  --color-violet-500: #82729c;
+  --color-violet-600: #6c5d84;
+  --color-violet-700: #594c6d;
+  --color-violet-800: #4a405a;
+  --color-violet-900: #3d364a;
+  --color-violet-950: #25202d;
+
+  --color-blue-50: #eff3f6;
+  --color-blue-100: #dce5ec;
+  --color-blue-200: #bfcfdb;
+  --color-blue-300: #9bb3c5;
+  --color-blue-400: #7896ae;
+  --color-blue-500: #5f7f94;
+  --color-blue-600: #4d697d;
+  --color-blue-700: #405667;
+  --color-blue-800: #364855;
+  --color-blue-900: #2d3c47;
+  --color-blue-950: #1b252c;
+}
+
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
-  --accent: #0f766e;
+  --background: #f3f0ea;
+  --foreground: #26241f;
+  --accent: #46603c;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root { --background: #0f172a; --foreground: #e2e8f0; }
+  :root { --background: #1a1916; --foreground: #efece5; }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "PingFang TC", "Noto Sans TC", "Noto Sans CJK TC", "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }

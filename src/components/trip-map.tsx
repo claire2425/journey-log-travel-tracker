@@ -109,7 +109,14 @@ export function TripMap({ language, trips }: TripMapProps) {
               attribution: "© OpenStreetMap contributors",
             },
           },
-          layers: [{ id: "open-street-map", type: "raster", source: "open-street-map" }],
+          layers: [{
+            id: "open-street-map",
+            type: "raster",
+            source: "open-street-map",
+            // Calm the tiles' saturated colours so routes stay the focus and the
+            // map matches the app's muted palette.
+            paint: { "raster-saturation": -0.55, "raster-contrast": -0.08, "raster-brightness-min": 0.06 },
+          }],
         },
       });
     } catch {
@@ -174,7 +181,7 @@ export function TripMap({ language, trips }: TripMapProps) {
         source: STOP_SOURCE,
         minzoom: 2.2,
         layout: { "text-field": ["get", "code"], "text-size": 11, "text-offset": [0, 1.15], "text-anchor": "top", "text-allow-overlap": false },
-        paint: { "text-color": "#0f172a", "text-halo-color": "#ffffff", "text-halo-width": 1.4 },
+        paint: { "text-color": "#26241f", "text-halo-color": "#ffffff", "text-halo-width": 1.4 },
       });
 
       map.on("click", "journey-routes", (event) => {

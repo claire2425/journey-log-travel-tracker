@@ -58,7 +58,7 @@ function pieGradient(statistics: ExpenseStatistics) {
   let position = 0;
   const stops = statistics.categories.map((category, index) => {
     const next = position + (category.amount_minor / statistics.total_spent_minor) * 100;
-    const stop = `${reportChartColors[index % reportChartColors.length] ?? "#64748b"} ${position}% ${next}%`;
+    const stop = `${reportChartColors[index % reportChartColors.length] ?? "#736d63"} ${position}% ${next}%`;
     position = next;
     return stop;
   });
